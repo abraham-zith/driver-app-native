@@ -1,0 +1,164 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+} from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import Icon from 'react-native-vector-icons/Feather';
+import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { hS, vS, mS } from '../../../lib/scale';
+
+const Page2 = () => {
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
+      {/* IMAGE */}
+      <Animated.View
+        entering={FadeInDown.duration(600).delay(100)}
+        style={styles.imageWrapper}
+      >
+        <Image
+          source={require('../../../assets/images/page2.png')}
+          style={styles.heroImage}
+          resizeMode="contain"
+        />
+      </Animated.View>
+
+      {/* TITLE */}
+      <Animated.Text
+        entering={FadeInDown.duration(600).delay(200)}
+        style={styles.title}
+      >
+        How the App Helps You
+      </Animated.Text>
+
+      {/* DESCRIPTION */}
+      <Animated.Text
+        entering={FadeInDown.duration(600).delay(300)}
+        style={styles.desc}
+      >
+        Accept rides instantly, track trips, view earnings, and manage your daily
+        bookings in one smart dashboard.
+      </Animated.Text>
+
+      {/* FEATURES */}
+      <Animated.View
+        entering={FadeInDown.duration(600).delay(400)}
+        style={styles.grid}
+      >
+        <View style={styles.card}>
+          <Icon name="check-circle" size={mS(22)} color="#64B5F6" />
+          <Text style={styles.cardTitle}>Accept Rides</Text>
+          <Text style={styles.cardSub}>Instant ride requests</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Icon name="trending-up" size={mS(22)} color="#64B5F6" />
+          <Text style={styles.cardTitle}>Track Trips</Text>
+          <Text style={styles.cardSub}>Live trip monitoring</Text>
+        </View>
+
+        <View style={styles.card}>
+          <MCIcon name="cash" size={mS(22)} color="#64B5F6" />
+          <Text style={styles.cardTitle}>View Earnings</Text>
+          <Text style={styles.cardSub}>Daily & weekly income</Text>
+        </View>
+
+        <View style={styles.card}>
+          <MCIcon name="calendar-check" size={mS(22)} color="#64B5F6" />
+          <Text style={styles.cardTitle}>Manage Bookings</Text>
+          <Text style={styles.cardSub}>All rides in one place</Text>
+        </View>
+      </Animated.View>
+    </ScrollView>
+  );
+};
+
+export default Page2;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingHorizontal: hS(20),
+    paddingBottom: vS(20),
+  },
+
+  /* IMAGE */
+  imageWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: vS(2),
+  },
+
+  heroImage: {
+    width: '100%',
+    height: vS(200),
+  },
+
+  /* TEXT */
+  title: {
+    fontSize: mS(22),
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginTop: vS(2),
+  },
+
+  desc: {
+    textAlign: 'center',
+    fontSize: mS(14),
+    color: '#4B5563',
+    marginTop: vS(2),
+    lineHeight: mS(20),
+  },
+
+  /* GRID */
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: vS(10),
+  },
+
+  card: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: mS(14),
+    alignItems: 'center',
+    paddingVertical: vS(2),
+    marginBottom: vS(6),
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  cardTitle: {
+    marginTop: vS(2),
+    fontSize: mS(13),
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+
+  cardSub: {
+    fontSize: mS(11),
+    color: '#6B7280',
+    marginTop: vS(2),
+    textAlign: 'center',
+  },
+});

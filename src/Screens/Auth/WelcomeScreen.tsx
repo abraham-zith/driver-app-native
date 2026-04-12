@@ -1,0 +1,369 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  StyleSheet,
+} from 'react-native';
+import Reanimated, {
+  FadeInDown,
+  FadeInUp,
+  FadeInLeft,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+  withTiming,
+  useSharedValue
+} from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '@react-navigation/native';
+import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
+import { HapticFeedbackTypes } from 'react-native-haptic-feedback';
+import { useHaptic } from '../../hooks/useHaptic';
+// import LinearGradient from 'react-native-linear-gradient';
+
+import { Input } from '../../Components';
+import Button from '../../Components/Button';
+
+import vdriveImg from '../../assets/images/wee.png';
+
+import { OTPScreen_Nav } from '../../Navigations/navigations';
+import { setUser } from '../../redux/userSlice';
+import { useSendOtpMutation } from '../../service/userApi';
+import { getDeviceId } from '../../service/utils/device';
+import { Logo } from '../../assets/svg';
+import AppStatusBar from '../../Components/AppStatusBar';
+
+// const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const OTP_NAVIGATION_DELAY = 700;
+
+const DecorativeBackground = ({ colors }: { colors: any }) => (
+  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Reanimated.View
+      entering={FadeInLeft.delay(300).duration(1000)}
+      style={[styles.blob, { top: -50, left: -50, backgroundColor: colors.primary + '15' }]}
+    />
+    <Reanimated.View
+      entering={FadeInUp.delay(500).duration(1000)}
+      style={[styles.blob, { bottom: -100, right: -50, width: 300, height: 300, backgroundColor: colors.primary + '10' }]}
+    />
+  </View>
+);
+
+
+const WelcomeScreen = ({ navigation }: any) => {
+  const { colors, fonts } = useTheme() as any;
+  const dispatch = useDispatch();
+  const { t } = useTranslation();
+  const { triggerHaptic } = useHaptic();
+
+  /* ================= STATE ================= */
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const buttonScale = useSharedValue(1);
+
+  const [sendOtp, { isLoading }] = useSendOtpMutation();
+
+  /* ================= DEVICE ID ================= */
+  useEffect(() => {
+    const loadDeviceId = async () => {
+      try {
+        const id = await getDeviceId();
+        setDeviceId(id);
+      } catch (e) {
+        console.log('DEVICE ID ERROR:', e);
+      }
+    };
+    loadDeviceId();
+  }, []);
+
+  /* ================= ANIMATIONS ================= */
+  const triggerShake = () => {
+    triggerHaptic(HapticFeedbackTypes.notificationError);
+    // Animated.sequence([
+    //   Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+    //   Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+    //   Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: true }),
+    //   Animated.timing(shakeAnim, { toValue: -6, duration: 50, useNativeDriver: true }),
+    //   Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    // ]).start();
+  };
+
+  const btnAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const inputAnimatedStyle = useAnimatedStyle(() => ({
+    borderColor: withTiming(
+      hasError ? '#EF4444' : isFocused ? colors.primary : colors.background === '#FFFFFF' ? '#9CA3AF' : 'rgba(255,255,255,0.3)',
+      { duration: 250 }
+    ),
+    transform: [{ scale: withSpring(isFocused ? 1.01 : 1) }],
+    backgroundColor: '#FFFFFF',
+  }));
+
+  /* ================= HANDLERS ================= */
+  const handleContinue = async () => {
+    buttonScale.value = withSequence(withSpring(0.95), withSpring(1));
+    triggerHaptic(HapticFeedbackTypes.impactLight);
+
+    if (!mobileNumber || mobileNumber.length !== 10) {
+      setHasError(true);
+      triggerShake();
+      return;
+    }
+
+    if (!deviceId) {
+      // ToastAndroid.show(t('device_initializing'), ToastAndroid.SHORT);
+      return;
+    }
+
+    try {
+      await sendOtp({
+        phone_number: mobileNumber,
+        role: 'driver',
+        device_id: deviceId,
+        allow_new_device: true,
+      }).unwrap();
+
+      dispatch(setUser({ phone_number: mobileNumber }));
+      // ToastAndroid.show(t('otp_sent_success'), ToastAndroid.SHORT);
+
+      setTimeout(() => {
+        navigation.navigate(OTPScreen_Nav);
+      }, OTP_NAVIGATION_DELAY);
+
+    } catch (err: any) {
+      /* ToastAndroid.show(
+        err?.data?.message || t('otp_send_fail'),
+        ToastAndroid.LONG
+      ); */
+    }
+  };
+
+  /* ================= UI COMPONENTS ================= */
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+      <AppStatusBar />
+      <DecorativeBackground colors={colors} />
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={{ padding: 24, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* LOGO */}
+          <Reanimated.View
+            entering={FadeInDown.delay(200).duration(600)}
+            style={{ alignItems: 'center', marginBottom: 12 }}
+          >
+            <View style={styles.logoContainer}>
+              <Logo width={72} height={72} />
+            </View>
+            <Text style={[fonts.medium, { fontSize: 14, opacity: 0.6, marginTop: -10, color: colors.text }]}>
+              {t('powering_journey')}
+            </Text>
+          </Reanimated.View>
+
+          {/* HEADER */}
+          <Reanimated.View
+            entering={FadeInDown.delay(400).duration(600)}
+            style={{ alignItems: 'center', marginTop: 10 }}
+          >
+            <Text style={[fonts.bold, { fontSize: 26, color: colors.text, textAlign: 'center' }]}>
+              {t('lets_get_on_road')}
+            </Text>
+            <Text style={{ fontSize: 15, opacity: 0.6, color: colors.text, marginTop: 4 }}>
+              {t('start_earning')}
+            </Text>
+          </Reanimated.View>
+
+          {/* IMAGE */}
+          <Reanimated.View entering={FadeInUp.delay(600).duration(800)}>
+            <Image
+              source={vdriveImg}
+              style={{ width: '100%', height: 220, marginVertical: -4 }}
+              resizeMode="contain"
+            />
+            {/* <Text style={{ textAlign: 'center', opacity: 0.5, color: colors.text, paddingHorizontal: 14 }}>
+              {t('item_goals_quote')}
+            </Text> */}
+          </Reanimated.View>
+
+          {/* INPUT SECTION */}
+          <Reanimated.View entering={FadeInDown.delay(800).duration(600)} style={{ marginTop: 24 }}>
+            <Text style={[fonts.medium, { fontSize: 16, marginBottom: 8, color: colors.text, marginLeft: 4 }]}>
+              {t('enter_mobile')}
+            </Text>
+
+            <View>
+              <Reanimated.View
+                style={[
+                  styles.glassInputContainer,
+                  inputAnimatedStyle,
+                  {
+                    borderWidth: 1.5,
+                    shadowColor: isFocused ? colors.primary : '#000',
+                    shadowOffset: { width: 0, height: isFocused ? 4 : 2 },
+                    shadowOpacity: isFocused ? 0.2 : 0.05,
+                    shadowRadius: isFocused ? 10 : 4,
+
+                  }
+                ]}
+              >
+                {/* INDIA FLAG + CODE */}
+                <View style={styles.countryCode}>
+                  <Text style={{ fontSize: 20, marginRight: 8 }}>🇮🇳</Text>
+                  <Text style={[fonts.bold, { fontSize: 17, color: colors.text }]}>+91</Text>
+                </View>
+
+                <View style={[styles.divider, { backgroundColor: colors.text + '20' }]} />
+
+                {/* MOBILE INPUT */}
+                <Input
+                  value={mobileNumber}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  placeholder={t('mobile_placeholder')}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  onChangeText={text => {
+                    const cleanText = text.replace(/[^0-9]/g, '');
+                    setMobileNumber(cleanText);
+                    if (hasError) setHasError(false);
+                    if (cleanText.length > 0) triggerHaptic(HapticFeedbackTypes.selection);
+                  }}
+                  containerStyle={{
+                    flex: 1,
+                    backgroundColor: 'transparent',
+                  }}
+                  inputContainerStyle={{
+                    borderWidth: 0,
+                    backgroundColor: 'transparent',
+                    height: '100%',
+                    paddingHorizontal: 0,
+                  }}
+                  style={{
+                    color: colors.text,
+                    fontSize: 18,
+                    fontWeight: mobileNumber ? '600' : '400',
+                    letterSpacing: mobileNumber ? 1 : 0,
+                    backgroundColor: 'transparent',
+                    paddingVertical: 0,
+                    textAlignVertical: 'center',
+                  }}
+                  placeholderTextColor={colors.text + '30'}
+                />
+              </Reanimated.View>
+            </View>
+
+            {/* ERROR TEXT */}
+            {hasError && (
+              <Reanimated.Text
+                entering={FadeInDown}
+                style={{ color: '#EF4444', fontSize: 13, marginTop: 8, marginLeft: 8 }}
+              >
+                {t('valid_mobile_error')}
+              </Reanimated.Text>
+            )}
+          </Reanimated.View>
+
+          {/* BUTTON */}
+          <Reanimated.View entering={FadeInUp.delay(1000).duration(600)}>
+            <Reanimated.View style={btnAnimatedStyle}>
+              <Button
+                style={{
+                  marginTop: 16,
+                  height: 60,
+                  borderRadius: 20,
+                  backgroundColor: colors.primary,
+                  elevation: 6,
+                  shadowColor: colors.primary,
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 12,
+                }}
+                onPress={handleContinue}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                    <Text style={[fonts.bold, { color: '#FFF', fontSize: 20 }]}>{t('get_otp')}</Text>
+                )}
+              </Button>
+            </Reanimated.View>
+          </Reanimated.View>
+
+          {/* FOOTER */}
+          <Reanimated.View
+            entering={FadeInUp.delay(1200).duration(600)}
+            style={{ marginTop: 32, marginBottom: 20 }}
+          >
+            <Text style={styles.footerText}>
+              {t('agree_terms_prefix')}
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>{t('terms')}</Text>
+              {t('and')}
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>{t('privacy_policy')}</Text>
+            </Text>
+          </Reanimated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  blob: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    opacity: 0.5,
+  },
+  logoContainer: {
+    padding: 1,
+    borderRadius: 24,
+    backgroundColor: 'transparent',
+  },
+  glassInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 22,
+    paddingHorizontal: 12,
+    height: 60,
+  },
+  countryCode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 14,
+  },
+  divider: {
+    width: 1,
+    height: 28,
+    marginLeft: 14,
+    opacity: 0.6,
+  },
+  footerText: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 20,
+    paddingHorizontal: 20,
+  },
+});
+
+export default WelcomeScreen;

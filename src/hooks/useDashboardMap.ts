@@ -1,0 +1,105 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import Geolocation from 'react-native-geolocation-service';
+
+import { useLocation } from './useLocation';
+
+
+// Default coordinates removed (was Chennai)
+
+interface UseDashboardMapProps {
+    isOnline: boolean;
+}
+
+export const useDashboardMap = ({ isOnline }: UseDashboardMapProps) => {
+    const { watchLocation, getCurrentLocation, getAddressFromCoords } = useLocation();
+
+    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number; heading: number | null } | null>(null);
+    const [currentAddress, setCurrentAddress] = useState<string>('');
+    const [locationError, setLocationError] = useState<string | null>(null);
+
+    const watchId = useRef<number | null>(null);
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
+    const updateAddress = useCallback(
+        async (lat: number, lng: number) => {
+            try {
+                const addr = await getAddressFromCoords(lat, lng);
+                if (addr) {
+                    setCurrentAddress(addr.street || addr.formattedAddress || '');
+                }
+            } catch (err) {
+                console.log('Address fetch error:', err);
+            }
+        },
+        [getAddressFromCoords]
+    );
+
+    const stopLocationUpdates = useCallback(() => {
+        if (watchId.current !== null) {
+            Geolocation.clearWatch(watchId.current);
+            watchId.current = null;
+        }
+    }, []);
+
+    const startLocationUpdates = useCallback(() => {
+        stopLocationUpdates();
+
+        if (!isMounted.current) return;
+
+        getCurrentLocation()
+            .then((pos: Geolocation.GeoPosition) => {
+                if (!isMounted.current) return;
+                const { latitude, longitude, heading } = pos.coords;
+                setUserLocation({ latitude, longitude, heading });
+                updateAddress(latitude, longitude);
+                setLocationError(null);
+            })
+            .catch((err: any) => {
+                console.log('Initial Location Error:', err);
+                setLocationError(err.message || 'Failed to fetch location');
+            });
+
+        watchId.current = watchLocation(
+            (pos: Geolocation.GeoPosition) => {
+                if (!isMounted.current) return;
+                const { latitude, longitude, heading } = pos.coords;
+                setUserLocation((prev) => {
+                    const latDiff = prev ? Math.abs(prev.latitude - latitude) : 1;
+                    const lngDiff = prev ? Math.abs(prev.longitude - longitude) : 1;
+                    if (latDiff > 0.0005 || lngDiff > 0.0005) {
+                        updateAddress(latitude, longitude);
+                    }
+                    return { latitude, longitude, heading };
+                });
+            },
+            (error: Geolocation.GeoError) => {
+                console.log('Dashboard Watch Error:', error);
+                setLocationError(error.message || 'Lost location signal');
+            }
+        );
+    }, [getCurrentLocation, watchLocation, updateAddress, stopLocationUpdates]);
+
+    useEffect(() => {
+        if (isOnline) {
+            startLocationUpdates();
+        } else {
+            stopLocationUpdates();
+            // Do not reset to a specific city when offline
+            // setUserLocation(null); // Optional: keep last known location or set to null
+        }
+        return () => stopLocationUpdates();
+    }, [isOnline, startLocationUpdates, stopLocationUpdates]);
+
+    return {
+        userLocation,
+        currentAddress,
+        locationError,
+    };
+};
