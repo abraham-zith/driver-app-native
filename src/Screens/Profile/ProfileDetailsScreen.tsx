@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import AppStatusBar from '../../Components/AppStatusBar';
 import { ms, vs } from '../../lib/scale';
+import ImageZoomModal from '../../Components/ImageZoomModal';
 
 const CardSection = ({ title, icon, children, s, headerIconColor }: any) => (
   <View style={s.cardSection}>
@@ -45,7 +46,23 @@ export default function ProfileDetailsScreen({ navigation }: any) {
 
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [showProfileImage, setShowProfileImage] = useState(false);
+  const [stableImgUrl, setStableImgUrl] = useState(user?.profile_picture);
+
+  // Sync stable image URL whenever it's valid
+  React.useEffect(() => {
+    if (user?.profile_picture && user.profile_picture.trim() !== '') {
+      setStableImgUrl(user.profile_picture);
+    }
+  }, [user?.profile_picture]);
+
   const isFocused = useIsFocused();
+
+  // Reset image error if user profile changes
+  React.useEffect(() => {
+    setImgError(false);
+  }, [user?.profile_picture]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -448,22 +465,36 @@ export default function ProfileDetailsScreen({ navigation }: any) {
           )}
 
           <View style={s.topSection}>
-            <View style={s.avatarContainer}>
-              {/* @ts-ignore */}
-              {user?.profile_picture ? (
-                <Image
-                  // @ts-ignore
-                  source={{ uri: user.profile_picture }}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={s.avatarText}>{getInitials()}</Text>
-              )}
+            <Pressable
+              style={s.avatarContainer}
+              onPress={() => {
+                if (stableImgUrl && !imgError) {
+                  setShowProfileImage(true);
+                }
+              }}
+            >
+              <View style={[s.avatarContainer, { position: 'relative', backgroundColor: 'transparent' }]}>
+                {(() => {
+                  // Priority 1: Show image if we have a stable URL and no error
+                  if (stableImgUrl && !imgError) {
+                    return (
+                      <Image
+                        source={{ uri: stableImgUrl.startsWith('http') ? stableImgUrl : 'file://' + stableImgUrl }}
+                        style={{ width: 80, height: 80, borderRadius: 40 }}
+                        resizeMode="cover"
+                        fadeDuration={0}
+                        onError={() => setImgError(true)}
+                      />
+                    );
+                  }
+                  // Priority 2: Show initials fallback
+                  return <Text style={s.avatarText}>{getInitials()}</Text>;
+                })()}
+              </View>
               <View style={s.verifiedBadge}>
                 <Ionicons name="shield-checkmark" size={12} color="#FFFFFF" />
               </View>
-            </View>
+            </Pressable>
 
             <Text style={s.nameText}>
               {user?.full_name}
@@ -639,6 +670,12 @@ export default function ProfileDetailsScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      <ImageZoomModal
+        isVisible={showProfileImage}
+        imageUri={stableImgUrl}
+        onClose={() => setShowProfileImage(false)}
+      />
 
     </SafeAreaView >
   );

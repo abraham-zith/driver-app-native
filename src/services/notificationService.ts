@@ -1,11 +1,14 @@
 /**
- * Firebase Cloud Messaging — Notification Service
+ * Firebase Cloud Messaging — Notification Service (Production-Ready)
  *
  * Handles:
  *  • Requesting notification permission (Android 13+)
  *  • Retrieving the device FCM token
  *  • Foreground notification display via Notifee
+ *  • Background / Quit-state notification handling
  *  • Token refresh listener
+ *  • Cold-start notification caching for useRideFeed recovery
+ *  • Deduplication: No duplicate system notifications for ride events
  */
 
 import {
@@ -21,12 +24,72 @@ import {
     AuthorizationStatus,
 } from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance } from '@notifee/react-native';
+import { globalEmitter, EVENTS } from '../utils/EventEmitter';
+
+/* ================================================================
+   CONSTANTS
+   ================================================================ */
+
+const CHANNEL_ID = 'ride_requests';
+const GENERAL_CHANNEL_ID = 'general';
+
+/** Notification types that represent ride-related events (handled by in-app UI) */
+const RIDE_NOTIFICATION_TYPES = new Set([
+    'RIDE_REQUEST',
+    'NEW_RIDE_REQUEST',
+    'ASSIGNED_RIDE',
+    'TRIP_ASSIGNED',
+]);
+
+/** Notification types that represent trip cancellations */
+const CANCELLATION_TYPES = new Set([
+    'RIDER_CANCELLED',
+    'TRIP_CANCELLED',
+    'SCHEDULED_RIDE_CANCELLED',
+    'CANCEL_RIDE',
+    'MID_CANCELLED',
+    'RIDE_CANCELLED',
+    'BOOKING_CANCELLED',
+]);
+
+/* ================================================================
+   COLD-START CACHE
+   Stores the initial notification that launched the app so hooks
+   can consume it even if they mount after the notification is read.
+   ================================================================ */
+
+let cachedInitialNotification: FirebaseMessagingTypes.RemoteMessage | null = null;
+
+/**
+ * 📦 Consume the cached initial notification (one-time read).
+ * Used by useRideFeed to recover ride state after a cold start.
+ */
+export function consumeInitialNotification() {
+    const msg = cachedInitialNotification;
+    cachedInitialNotification = null;
+    return msg;
+}
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+
+/** Normalize the notification type to uppercase for consistent matching */
+function getNotificationType(data?: Record<string, string>): string {
+    return (data?.type || data?.status || '').toString().toUpperCase();
+}
+
+/** Check if a notification data represents a valid ride event (must have type AND tripId) */
+function isValidRideNotification(data?: Record<string, string>): boolean {
+    const type = getNotificationType(data);
+    const hasType = RIDE_NOTIFICATION_TYPES.has(type) || type === 'ASSIGNED_RIDE';
+    const hasId = !!(data?.trip_id || data?.id || data?.tripId || data?.bookingId);
+    return hasType && hasId;
+}
 
 /* ================================================================
    CHANNEL — Android requires a notification channel (8.0+)
    ================================================================ */
-
-const CHANNEL_ID = 'ride_requests';
 
 async function ensureChannel(): Promise<string> {
     return await notifee.createChannel({
@@ -65,22 +128,18 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function getFCMToken(): Promise<string | null> {
     try {
         const token = await getToken(getMessaging());
-        console.log('🔑 FCM TOKEN:', token);
-
-        try {
-            const { store } = require('../redux/store');
-            console.log('--- YOUR TEST INFO ---');
-            console.log('DRIVER ID:', store.getState().userSlice.user?.driverId);
-            console.log('BEARER TOKEN:', store.getState().userSlice.user?.accessToken);
-            console.log('----------------------');
-        } catch (e) {
-            console.log('Could not load test info yet');
+        if (__DEV__) {
+            console.log('🔑 FCM TOKEN:', token);
+            try {
+                const { store } = require('../redux/store');
+                console.log('--- DEBUG INFO ---');
+                console.log('DRIVER ID:', store.getState().userSlice.user?.driverId);
+                console.log('-----------------');
+            } catch (_) { /* Redux not ready yet */ }
         }
-
         return token;
     } catch (error: any) {
-        // Use warn instead of error to avoid triggering the red box in development if Play Services is missing (e.g. some emulators)
-        console.warn('⚠️ FCM Play Services not available or failed:', error?.message || error);
+        console.warn('⚠️ FCM token retrieval failed:', error?.message || error);
         return null;
     }
 }
@@ -93,42 +152,40 @@ export function setupForegroundHandler(): () => void {
     const unsubscribe = onMessage(
         getMessaging(),
         async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
-            console.log('📩 Foreground message:', remoteMessage);
+            console.log('📩 Foreground message:', JSON.stringify(remoteMessage.data));
 
-            // Respect driver's vibration preference
-            const { store } = require('../redux/store');
-            const isVibrationEnabled = store.getState()?.userSlice?.user?.isVibrationEnabled ?? true;
+            const type = getNotificationType(remoteMessage.data as Record<string, string>);
 
-            const channelId = await ensureChannel();
-
-            // 🛡️ [100% Solve] Programmatic Cancellation Handling
-            // If the notification type is a cancellation, we must clear the internal state.
-            const type = remoteMessage.data?.type || remoteMessage.data?.status;
-            if (
-                type === 'rider_cancelled' || 
-                type === 'trip_cancelled' || 
-                type === 'SCHEDULED_RIDE_CANCELLED' || 
-                type === 'CANCEL_RIDE' || 
-                type === 'MID_CANCELLED' ||
-                type === 'RIDE_CANCELLED' ||
-                type === 'BOOKING_CANCELLED'
-            ) {
-                console.log('🛑 [FCM] Cancellation detected. Emitting global event...');
-                
+            // 1. Handle cancellations — emit event for dashboard to react
+            if (CANCELLATION_TYPES.has(type)) {
                 try {
-                    const { globalEmitter, EVENTS } = require('../utils/EventEmitter');
-                    
-                    // Emit the event so RootNavigation can handle the visual alert and redirection.
-                    // This is more robust than direct navigation here.
                     globalEmitter.emit(EVENTS.TRIP_CANCELLED, remoteMessage.data);
                 } catch (err) {
                     console.error('❌ Failed to emit cancellation event:', err);
                 }
+                // Still show the cancellation notification in the tray
             }
 
+            // 2. Skip system notification for ride/assigned events when app is OPEN
+            //    The socket event already triggers the in-app card UI directly.
+            if (isValidRideNotification(remoteMessage.data as Record<string, string>)) {
+                console.log('📩 [Foreground] Valid ride notification handled in-app, skipping system tray.');
+                return;
+            }
+
+            // For data-only messages, read title/body from data field
+            const title = remoteMessage.notification?.title ?? (remoteMessage.data as any)?.title ?? 'New Notification';
+            const body = remoteMessage.notification?.body ?? (remoteMessage.data as any)?.body ?? '';
+
+            // 3. Display all other notifications in the system tray
+            const { store } = require('../redux/store');
+            const isVibrationEnabled = store.getState()?.userSlice?.user?.isVibrationEnabled ?? true;
+            const channelId = await ensureChannel();
+
             await notifee.displayNotification({
-                title: remoteMessage.notification?.title ?? 'New Notification',
-                body: remoteMessage.notification?.body ?? '',
+                id: (remoteMessage.data?.trip_id || remoteMessage.data?.id || remoteMessage.data?.tripId || Date.now()).toString(),
+                title,
+                body,
                 android: {
                     channelId,
                     importance: AndroidImportance.HIGH,
@@ -158,15 +215,42 @@ export function setupForegroundHandler(): () => void {
    Must be registered at index.js (top-level)
    ================================================================ */
 
+/** Notification types that represent DIRECT ride assignments (must show in background) */
+const ASSIGNMENT_TYPES = new Set([
+    'ASSIGNED_RIDE',
+    'RIDE_ASSIGNED',
+    'TRIP_ASSIGNED',
+]);
+
 export function setupBackgroundHandler(): void {
     setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
-        console.log('📩 Background message:', remoteMessage);
+        console.log('📩 Background message:', JSON.stringify(remoteMessage.data));
+
+        const type = getNotificationType(remoteMessage.data as Record<string, string>);
+
+        // 🛡️ For BROADCAST ride requests (NEW_RIDE_REQUEST), skip system notification.
+        // These expire in ~15 seconds and the socket/AppState resume will handle them.
+        // But for DIRECT ASSIGNMENTS (ASSIGNED_RIDE/TRIP_ASSIGNED), we MUST show
+        // a notification because socket is disconnected in background/killed state
+        // and the driver needs to be alerted immediately.
+        if (isValidRideNotification(remoteMessage.data as Record<string, string>)) {
+            if (!ASSIGNMENT_TYPES.has(type)) {
+                console.log('📩 [Background] Broadcast ride notification — skipping system tray.');
+                return;
+            }
+            console.log('📩 [Background] Direct ride ASSIGNMENT — showing system notification.');
+        }
 
         const channelId = await ensureChannel();
 
+        // For data-only messages, read title/body from data field
+        const title = String(remoteMessage.notification?.title ?? remoteMessage.data?.title ?? 'New Notification');
+        const body = String(remoteMessage.notification?.body ?? remoteMessage.data?.body ?? '');
+
         await notifee.displayNotification({
-            title: remoteMessage.notification?.title ?? 'New Notification',
-            body: remoteMessage.notification?.body ?? '',
+            id: String(remoteMessage.data?.trip_id || remoteMessage.data?.id || remoteMessage.data?.tripId || Date.now()),
+            title,
+            body,
             android: {
                 channelId,
                 importance: AndroidImportance.HIGH,
@@ -194,29 +278,60 @@ export function onTokenRefresh(
 
 /* ================================================================
    NOTIFICATION OPENED HANDLER (Foregrounding App on Tap)
+   
+   Two scenarios:
+   1. Background → user taps notification → app comes to foreground
+   2. Quit state → user taps notification → app cold-starts
    ================================================================ */
+
+// 2. App was completely killed, user taps notification
+// Capture this as early as possible (at file load) to avoid missing it due to race conditions
+getInitialNotification(getMessaging())
+    .then(remoteMessage => {
+        if (!remoteMessage) return;
+
+        console.log('✅ [Quit→Launch] Early capture of initial notification:', JSON.stringify(remoteMessage.data));
+        
+        // Cache for hooks like useRideFeed
+        cachedInitialNotification = remoteMessage;
+
+        const type = getNotificationType(remoteMessage.data as Record<string, string>);
+
+        // Emit after a short delay to ensure app navigation and listeners (like useRideFeed) are ready
+        if (isValidRideNotification(remoteMessage.data as Record<string, string>)) {
+            setTimeout(() => {
+                // 🛡️ Prevent duplicate processing: Only emit if it hasn't been consumed directly by a hook
+                if (cachedInitialNotification) {
+                    globalEmitter.emit(EVENTS.NOTIFICATION_OPENED, remoteMessage?.data);
+                    cachedInitialNotification = null; // Clear after emitting
+                } else {
+                    console.log('✅ [Quit→Launch] Initial notification already consumed, skipping delayed emit.');
+                }
+            }, 1500);
+        }
+    })
+    .catch(err => console.warn('[notificationService] Early capture error:', err));
 
 export function setupNotificationOpenedHandler(
     navigate: (screen: string, params?: any) => void,
 ) {
     // 1. App is running in background, user taps notification
     const unsubscribe = onNotificationOpenedApp(getMessaging(), remoteMessage => {
-        console.log('✅ Notification caused app to open from background:', remoteMessage);
-            navigate('ScheduledRides'); // Use the name from RootNavigation
+        console.log('✅ [Background→Foreground] Notification opened:', JSON.stringify(remoteMessage.data));
+
+        const type = getNotificationType(remoteMessage.data as Record<string, string>);
+
+        if (isValidRideNotification(remoteMessage.data as Record<string, string>)) {
+            // Emit so useRideFeed can verify the trip and show the card
+            globalEmitter.emit(EVENTS.NOTIFICATION_OPENED, remoteMessage.data);
+        } else if (type === 'SCHEDULED_REMINDER') {
+            navigate('ScheduledRides');
+        }
+        // All other notification types: app just opens normally
     });
 
-    // 2. App was completely killed, user taps notification
-    getInitialNotification(getMessaging())
-        .then(remoteMessage => {
-            if (remoteMessage) {
-                console.log('✅ Notification caused app to open from quit state:', remoteMessage);
-                if (remoteMessage.data?.type === 'ride_request' || remoteMessage.data?.type === 'NEW_RIDE_REQUEST' || remoteMessage.data?.type === 'SCHEDULED_REMINDER' || remoteMessage.data?.type === 'test_notification') {
-                    // Delay navigation slightly to ensure navigation tree is ready
-                        navigate('ScheduledRides');
-                }
-            }
-        });
+    // NOTE: getInitialNotification (cold-start) is handled at module-scope
+    // (line 259) to avoid race conditions. Do NOT call it again here.
 
     return unsubscribe;
 }
-

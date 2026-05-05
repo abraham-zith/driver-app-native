@@ -47,6 +47,7 @@ export type RideItem = {
   scheduled_start_time?: string;
   trip_status?: string;
   otp?: string;
+  noVibrate?: boolean;
 };
 
 type Props = {
@@ -176,6 +177,11 @@ const RideAlertCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
 
   /* ---------- SOUND + VIBRATION ---------- */
   useEffect(() => {
+    if (item.noVibrate) {
+        console.log('Skipping sound/vibration for notification-triggered ride');
+        return;
+    }
+
     const playSound = () => {
       try {
         SoundPlayer.playSoundFile('incoming', 'mp3');
@@ -195,7 +201,7 @@ const RideAlertCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
         console.log('Sound/Vibration stop error:', e);
       }
     };
-  }, []);
+  }, [item.noVibrate]);
 
   /* ---------- ACTIONS ---------- */
   const handleAccept = useCallback(() => {
@@ -376,7 +382,7 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: '#fff',
-    borderRadius: ms(30),
+    borderRadius: ms(12),
     overflow: 'hidden',
     elevation: 20,
     shadowColor: '#000',
@@ -386,11 +392,11 @@ const styles = StyleSheet.create({
   },
 
   contentPadding: {
-    padding: s(20),
+    padding: s(24),
   },
 
   cardHeaderGradient: {
-    paddingHorizontal: s(20),
+    paddingHorizontal: s(24),
     paddingVertical: vs(24),
   },
 

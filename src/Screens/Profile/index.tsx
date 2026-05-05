@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
@@ -11,13 +11,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../redux/store';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { setBannerIndex } from '../../redux/userSlice';
 import AppStatusBar from '../../Components/AppStatusBar';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useLazyGetDriverByIdQuery } from '../../service/driverApi';
 import {
   HelpCenter_Nav,
   ContactSupport_Nav,
@@ -25,6 +26,7 @@ import {
   SosContacts_Nav,
   ReferEarn_Nav,
 } from '../../Navigations/navigations';
+import ImageZoomModal from '../../Components/ImageZoomModal';
 
 /* ================= BANNER LIST ================= */
 const BANNERS = [
@@ -45,8 +47,33 @@ const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
 
+  const [triggerFetch] = useLazyGetDriverByIdQuery();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.driverId) {
+        triggerFetch(user.driverId);
+      }
+    }, [user?.driverId, triggerFetch])
+  );
+
   const [showBannerPicker, setShowBannerPicker] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [showProfileImage, setShowProfileImage] = useState(false);
+  const [stableImgUrl, setStableImgUrl] = useState(user?.profile_picture);
+
+  // Sync stable image URL whenever it's valid
+  React.useEffect(() => {
+    if (user?.profile_picture && user.profile_picture.trim() !== '') {
+      setStableImgUrl(user.profile_picture);
+    }
+  }, [user?.profile_picture]);
+
+  // Reset error when image URL changes
+  React.useEffect(() => {
+    setImgError(false);
+  }, [user?.profile_picture]);
 
   const name =
     user?.full_name
@@ -99,22 +126,36 @@ const ProfileScreen = ({ navigation }: any) => {
         </Pressable>
 
         {/* ================= PROFILE IMAGE ================= */}
-        <View style={styles.avatarWrapper}>
-          {user?.documents?.Profile_Selfie?.preview || user?.profile_picture ? (
-            <Image
-              source={{
-                uri: (user?.documents?.Profile_Selfie?.preview || user?.profile_picture || '').startsWith('http')
-                  ? (user?.documents?.Profile_Selfie?.preview || user?.profile_picture)
-                  : 'file://' + (user?.documents?.Profile_Selfie?.preview || user?.profile_picture),
-              }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={[styles.avatarPlaceholder, isDark && { backgroundColor: '#374151' }]}>
-              <Ionicons name="person-outline" size={36} color="#9CA3AF" />
-            </View>
-          )}
-        </View>
+        <Pressable
+          style={styles.avatarWrapper}
+          onPress={() => {
+            if (stableImgUrl && !imgError) {
+              setShowProfileImage(true);
+            }
+          }}
+        >
+          <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+            <Text style={[styles.avatarText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
+              {(() => {
+                if (!user) return 'UN';
+                const first = user.full_name ? user.full_name.charAt(0).toUpperCase() : '';
+                const last = user.last_name ? user.last_name.charAt(0).toUpperCase() : '';
+                return first || 'UN';
+              })()}
+            </Text>
+
+            {stableImgUrl && !imgError && (
+              <Image
+                source={{
+                  uri: stableImgUrl.startsWith('http') ? stableImgUrl : 'file://' + stableImgUrl,
+                }}
+                style={[styles.avatar, { position: 'absolute', top: 0, left: 0 }]}
+                fadeDuration={0}
+                onError={() => setImgError(true)}
+              />
+            )}
+          </View>
+        </Pressable>
 
         {/* ================= NAME ================= */}
         <Text style={[styles.name, { color: isDark ? '#FFFFFF' : '#111827' }]}>{name}</Text>
@@ -322,6 +363,12 @@ const ProfileScreen = ({ navigation }: any) => {
         </View>
       </Modal>
 
+      <ImageZoomModal
+        isVisible={showProfileImage}
+        imageUri={stableImgUrl}
+        onClose={() => setShowProfileImage(false)}
+      />
+
     </View>
   );
 };
@@ -453,7 +500,7 @@ const styles = StyleSheet.create({
   avatarWrapper: {
     alignSelf: 'center',
     marginTop: -45,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     padding: 3,
     borderRadius: 60,
   },
@@ -471,6 +518,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#111827',
   },
 
   /* ---------- USER INFO ---------- */

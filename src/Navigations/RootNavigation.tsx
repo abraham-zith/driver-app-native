@@ -261,6 +261,8 @@ const RootNavigation = () => {
         (rawStatus === 'ACCEPTED' && !isScheduled)
       ) {
         initialRoute = PickupMapScreen_Nav;
+      } else if (rawStatus === 'VERIFICATION_PENDING') {
+        initialRoute = 'VehicleVerificationScreen';
       } else if (['LIVE', 'STARTED', 'ON_TRIP', 'DESTINATION_REACHED'].includes(rawStatus)) {
         initialRoute = DropMapScreen_Nav;
       }

@@ -11,6 +11,7 @@ import { useAlert } from "../context/AlertContext";
 import { StackActions } from "@react-navigation/native";
 import audioService from "../utils/audioService";
 import { setUser } from "../redux/userSlice";
+import { driverApi } from "../service/driverApi";
 
 interface Props {
     children: React.ReactNode;
@@ -98,10 +99,33 @@ export const SocketProvider: React.FC<Props> = ({ children }) => {
         socketService.on("rider_cancelled", handleGlobalCancellation);
         socketService.on("SCHEDULED_RIDE_CANCELLED", handleGlobalCancellation);
 
+        // 🛡️ Document Status Update Listener
+        socketService.on("DOCUMENT_STATUS_UPDATE", (data: any) => {
+            console.log('[SocketProvider] Document status update received:', data);
+            if (driverId) {
+                // Invalidate RTK Query cache so documents & profile refetch with latest data
+                dispatch(driverApi.util.invalidateTags(['Documents', 'Driver']));
+
+                if (data.status === 'rejected' || data.status === 'REJECTED') {
+                    dispatch(setUser({ onboarding_status: 'DOCS_REJECTED' }));
+                }
+
+                // Fetch latest profile from API to get authoritative onboarding_status
+                dispatch(driverApi.endpoints.getDriverProfile.initiate(undefined, { forceRefetch: true }))
+                    .unwrap()
+                    .then((profileResult: any) => {
+                        const profile = profileResult?.data || profileResult;
+                        if (profile?.onboarding_status) {
+                            dispatch(setUser(profile));
+                        }
+                    })
+                    .catch(() => {});
+            }
+        });
+
         // 🛡️ Account Status Update Listener (Block/Suspend)
         socketService.on("ACCOUNT_STATUS_UPDATE", (data: any) => {
             console.log('[SocketProvider] Account status update received:', data);
-            // data = { status: 'blocked', status_reason: '...', status_updated_at: '...' }
             dispatch(setUser({
                 status: data.status,
                 status_reason: data.status_reason,
@@ -121,6 +145,7 @@ export const SocketProvider: React.FC<Props> = ({ children }) => {
             socketService.off("rider_cancelled", handleGlobalCancellation);
             socketService.off("SCHEDULED_RIDE_CANCELLED", handleGlobalCancellation);
             socketService.off("ACCOUNT_STATUS_UPDATE");
+            socketService.off("DOCUMENT_STATUS_UPDATE");
             // Do NOT disconnect the service here as it might be used globally
         };
     }, [driverId, role]);

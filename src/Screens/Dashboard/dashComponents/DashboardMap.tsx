@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable, Animated as RNAnimated, Platform } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { View, StyleSheet, Pressable, Animated as RNAnimated, Platform, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import MapView, { PROVIDER_GOOGLE, AnimatedRegion, Marker } from 'react-native-maps';
 import LinearGradient from 'react-native-linear-gradient';
@@ -122,7 +122,8 @@ const LIGHT_MAP_STYLE = [
 ];
 
 interface DashboardMapProps {
-    userLocation: { latitude: number; longitude: number; heading: number | null } | null;
+    userLocation: { latitude: number; longitude: number; heading: number | null; accuracy?: number } | null;
+    currentAddress?: string;
     isOnline: boolean;
     routeCoordinates?: { latitude: number; longitude: number }[];
 }
@@ -130,6 +131,7 @@ interface DashboardMapProps {
 
 const DashboardMap: React.FC<DashboardMapProps> = ({
     userLocation,
+    currentAddress,
     isOnline,
     routeCoordinates = [],
 }) => {
@@ -141,6 +143,27 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
     const [hasCentered, setHasCentered] = useState(false);
     const [mapMargin, setMapMargin] = useState(1);
     const [showTraffic, setShowTraffic] = useState(false);
+    const [isMapLoaded, setIsMapLoaded] = useState(false);
+    const [isMapReady, setIsMapReady] = useState(false);
+    const [hasMountedMap, setHasMountedMap] = useState(false);
+    const [trackChanges, setTrackChanges] = useState(true);
+
+    // ── Fix for Android Marker Disappearing ──
+    // TracksViewChanges forces Android to continually re-render the view as a bitmap.
+    // We only enable it briefly when content changes to prevent disappearance and improve performance.
+    useEffect(() => {
+        setTrackChanges(true);
+        const timer = setTimeout(() => {
+            setTrackChanges(false);
+        }, 1500); // Allow enough time for the map and text to render
+        return () => clearTimeout(timer);
+    }, [currentAddress, isOnline]);
+
+    useEffect(() => {
+        if (userLocation && !hasMountedMap) {
+            setHasMountedMap(true);
+        }
+    }, [userLocation, hasMountedMap]);
 
     // ── Animated Marker (Smooth Glide) ──
     const animatedCoord = useRef(new AnimatedRegion({
@@ -155,9 +178,6 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
 
     // ── Offline overlay fade animation ──
     const offlineFade = useRef(new RNAnimated.Value(isOnline ? 0 : 1)).current;
-
-    // ── Pulse animation for the marker ──
-    const markerPulse = useRef(new RNAnimated.Value(1)).current;
 
     // Reset centering when going offline
     useEffect(() => {
@@ -181,28 +201,41 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
         }, [isOnline])
     );
 
+    const hasInitializedLocation = useRef(false);
+
     // ── Smooth marker animation on location updates ──
     useEffect(() => {
         if (userLocation && isOnline) {
-            // Smooth glide the marker to new position
-            if (Platform.OS === 'android') {
-                animatedCoord.timing({
+            if (!hasInitializedLocation.current) {
+                // Instantly snap to the first valid location without animating from 0,0
+                animatedCoord.setValue({
                     latitude: userLocation.latitude,
                     longitude: userLocation.longitude,
                     latitudeDelta: 0.01,
                     longitudeDelta: 0.01,
-                    duration: 1000,
-                    useNativeDriver: false,
-                } as any).start();
+                });
+                hasInitializedLocation.current = true;
             } else {
-                animatedCoord.timing({
-                    latitude: userLocation.latitude,
-                    longitude: userLocation.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                    duration: 1000,
-                    useNativeDriver: false,
-                } as any).start();
+                // Smooth glide the marker to new position
+                if (Platform.OS === 'android') {
+                    animatedCoord.timing({
+                        latitude: userLocation.latitude,
+                        longitude: userLocation.longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                        duration: 1000,
+                        useNativeDriver: false,
+                    } as any).start();
+                } else {
+                    animatedCoord.timing({
+                        latitude: userLocation.latitude,
+                        longitude: userLocation.longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                        duration: 1000,
+                        useNativeDriver: false,
+                    } as any).start();
+                }
             }
         }
     }, [userLocation, isOnline, animatedCoord]);
@@ -247,21 +280,6 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
         }
     }, [isFollowing, isOnline, recenterPulse]);
 
-    // ── Marker pulse animation ──
-    useEffect(() => {
-        if (isOnline) {
-            RNAnimated.loop(
-                RNAnimated.sequence([
-                    RNAnimated.timing(markerPulse, { toValue: 1.6, duration: 2000, useNativeDriver: true }),
-                    RNAnimated.timing(markerPulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
-                ])
-            ).start();
-        } else {
-            markerPulse.stopAnimation();
-            markerPulse.setValue(1);
-        }
-    }, [isOnline, markerPulse]);
-
     const recenterMap = useCallback(() => {
         if (userLocation) {
             setIsFollowing(true);
@@ -277,9 +295,7 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
         }
     }, [userLocation]);
 
-    const rotation = userLocation?.heading !== null && userLocation?.heading !== undefined
-        ? `${userLocation.heading}deg`
-        : '0deg';
+    // Unused rotation logic removed as the heading beam is no longer present
 
     const recenterRingOpacity = recenterPulse.interpolate({
         inputRange: [0, 1],
@@ -293,67 +309,85 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
 
     return (
         <View style={styles.mapContainer}>
+            {hasMountedMap && (
             <MapView
                 ref={mapRef}
                 provider={PROVIDER_GOOGLE}
                 style={{ flex: 1 }}
                 customMapStyle={isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
-                onMapReady={() => setMapMargin(0)}
+                onMapReady={() => {
+                    setMapMargin(0);
+                    setIsMapLoaded(true);
+                    setTimeout(() => setIsMapReady(true), 800);
+                }}
                 showsUserLocation={false}
                 showsMyLocationButton={false}
                 showsCompass={false}
                 showsTraffic={showTraffic}
                 onPanDrag={() => setIsFollowing(false)}
-                region={{
+                initialRegion={{
                     latitude: userLocation?.latitude || 0,
                     longitude: userLocation?.longitude || 0,
-                    latitudeDelta: userLocation ? 0.05 : 100,
-                    longitudeDelta: userLocation ? 0.05 : 100,
+                    latitudeDelta: 0.05,
+                    longitudeDelta: 0.05,
                 }}
             >
                 {/* ── SMOOTH ANIMATED MARKER ── */}
-                {isOnline && userLocation && (
+                {userLocation && isMapLoaded && (
                     <Marker.Animated
+                        key={currentAddress ? 'loaded-marker' : 'loading-marker'} // Forces a clean render when address is found
                         coordinate={animatedCoord as any}
-                        anchor={{ x: 0.5, y: 0.5 }}
-                        flat={true}
+                        anchor={{ x: 0.5, y: 1 }}
+                        flat={false}
                         zIndex={99}
+                        tracksViewChanges={Platform.OS === 'android' ? trackChanges : undefined} // Only track briefly when text/state changes
                     >
-                        <View style={styles.markerOuter}>
-                            {/* Pulse ring */}
-                            <RNAnimated.View
-                                style={[
-                                    styles.markerPulseRing,
-                                    {
-                                        backgroundColor: theme.colors.primary,
-                                        transform: [{ scale: markerPulse }],
-                                        opacity: markerPulse.interpolate({
-                                            inputRange: [1, 1.6],
-                                            outputRange: [0.35, 0],
-                                        }),
-                                    },
-                                ]}
-                            />
-                            {/* Car body */}
-                            <View style={[
-                                styles.markerCarBody,
-                                { backgroundColor: theme.colors.primary, transform: [{ rotate: rotation }] },
-                            ]}>
-                                <MaterialCommunityIcons name="car-sports" size={ms(20)} color="#FFFFFF" />
+                        <View style={styles.customMarkerContainer}>
+                            {/* Label - Positioned Above */}
+                            <View style={styles.markerLabelContainer}>
+                                <Text style={styles.markerLabelText} numberOfLines={1}>
+                                    {currentAddress || t('fetching_location') || "Locating..."}
+                                </Text>
+                                <View style={styles.labelPointer} />
                             </View>
-                            {/* Directional arrow */}
-                            <View style={[
-                                styles.markerArrow,
-                                { borderBottomColor: theme.colors.primary, transform: [{ rotate: rotation }] },
-                            ]} />
+
+                            {/* Red Pin + Blue Dot Combo */}
+                            <View style={styles.markerVisuals}>
+                                {/* Red Pin with Blue Base Dot */}
+                                <View style={[styles.pinContainer, !isOnline && { opacity: 0.6 }]}>
+                                    <Ionicons 
+                                        name="location" 
+                                        size={ms(34)} 
+                                        color={isOnline ? "#EF4444" : "#64748B"} 
+                                    />
+                                    {/* The Blue Circle at the base */}
+                                    <View style={[styles.blueBaseCircle, !isOnline && { borderColor: '#94A3B8' }]}>
+                                        <View style={[styles.blueBaseInner, !isOnline && { backgroundColor: '#64748B' }]} />
+                                    </View>
+                                </View>
+                            </View>
                         </View>
                     </Marker.Animated>
                 )}
             </MapView>
+            )}
+
+            {/* ── LOADER OVERLAY ── */}
+            {(!userLocation || !isMapReady) && (
+                <View style={[
+                    StyleSheet.absoluteFillObject, 
+                    { justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', zIndex: 100 }
+                ]}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={{ marginTop: vs(12), color: isDark ? '#94a3b8' : '#64748b', fontSize: ms(13), fontWeight: '600' }}>
+                        {t('fetching_location') || 'Fetching location...'}
+                    </Text>
+                </View>
+            )}
 
             {/* ── GRADIENT FADE OVERLAY (bottom edge blend) ── */}
             <LinearGradient
-                colors={['transparent', isDark ? '#0F172A' : '#F5F6FA']}
+                colors={['transparent', isDark ? 'rgba(15, 23, 42, 0.5)' : 'rgba(245, 246, 250, 0.5)']}
                 style={styles.mapGradientFade}
                 pointerEvents="none"
             />
@@ -368,6 +402,16 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
                     <View style={styles.statusDot} />
                     <Text style={[styles.statusChipText, { color: isDark ? '#E2E8F0' : '#1E293B' }]}>
                         {t('online') || 'Online'}
+                    </Text>
+                </View>
+            )}
+
+            {/* ── MAP PAUSED TOAST ── */}
+            {!isFollowing && isOnline && (
+                <View style={[styles.mapPausedChip, { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.92)' : 'rgba(255, 255, 255, 0.92)' }]}>
+                    <Ionicons name="hand-left-outline" size={ms(14)} color={theme.colors.primary} style={{ marginRight: s(6) }} />
+                    <Text style={[styles.statusChipText, { color: isDark ? '#E2E8F0' : '#1E293B' }]}>
+                        {t('map_paused') || 'Map Paused'}
                     </Text>
                 </View>
             )}
@@ -399,6 +443,9 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
                             },
                         ]}
                         onPress={() => setShowTraffic(prev => !prev)}
+                        accessibilityLabel={t('toggle_traffic') || "Toggle Traffic"}
+                        accessibilityHint={t('toggle_traffic_hint') || "Shows or hides live traffic on the map"}
+                        accessibilityRole="button"
                     >
                         <MaterialCommunityIcons
                             name="traffic-light"
@@ -432,6 +479,9 @@ const DashboardMap: React.FC<DashboardMapProps> = ({
                                 },
                             ]}
                             onPress={recenterMap}
+                            accessibilityLabel={t('recenter_map') || "Recenter Map"}
+                            accessibilityHint={t('recenter_map_hint') || "Centers the map back to your current location"}
+                            accessibilityRole="button"
                         >
                             <Ionicons
                                 name={isFollowing ? 'navigate' : 'locate'}
@@ -462,7 +512,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: vs(50),
+        height: vs(20),
     },
 
 
@@ -494,46 +544,96 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         letterSpacing: 0.3,
     },
-
-    // ── Smooth Animated Marker ──
-    markerOuter: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: ms(56),
-        height: ms(56),
-    },
-    markerPulseRing: {
+    mapPausedChip: {
         position: 'absolute',
-        width: ms(44),
-        height: ms(44),
-        borderRadius: ms(22),
-    },
-    markerCarBody: {
-        width: ms(34),
-        height: ms(34),
-        borderRadius: ms(17),
+        top: vs(12),
+        alignSelf: 'center',
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 6,
+        paddingHorizontal: s(12),
+        paddingVertical: vs(6),
+        borderRadius: ms(20),
         shadowColor: '#000',
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
         shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-        borderWidth: 2.5,
-        borderColor: '#FFFFFF',
+        elevation: 4,
     },
-    markerArrow: {
+
+    // ── Custom Marker Styles ──
+    customMarkerContainer: {
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingBottom: vs(12),
+    },
+    markerVisuals: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pinContainer: {
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        position: 'relative',
+    },
+    blueBaseCircle: {
         position: 'absolute',
-        top: ms(2),
+        bottom: ms(3),
+        width: ms(14),
+        height: ms(14),
+        borderRadius: ms(7),
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#3B82F6',
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+    },
+    blueBaseInner: {
+        width: ms(6),
+        height: ms(6),
+        borderRadius: ms(3),
+        backgroundColor: '#2563EB',
+    },
+    markerLabelContainer: {
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        paddingHorizontal: s(10),
+        paddingVertical: vs(5),
+        borderRadius: ms(10),
+        marginBottom: vs(6),
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 10,
+        alignItems: 'center',
+        minWidth: s(80),
+        maxWidth: s(200),
+    },
+    markerLabelText: {
+        color: '#FFFFFF',
+        fontSize: ms(11),
+        fontWeight: '800',
+        textAlign: 'center',
+        letterSpacing: 0.2,
+    },
+    labelPointer: {
+        position: 'absolute',
+        bottom: -vs(6),
         width: 0,
         height: 0,
         backgroundColor: 'transparent',
         borderStyle: 'solid',
-        borderLeftWidth: ms(6),
-        borderRightWidth: ms(6),
-        borderBottomWidth: ms(10),
+        borderLeftWidth: s(6),
+        borderRightWidth: s(6),
+        borderTopWidth: vs(6),
         borderLeftColor: 'transparent',
         borderRightColor: 'transparent',
+        borderTopColor: 'rgba(15, 23, 42, 0.95)',
     },
 
     // ── Control Buttons Stack ──

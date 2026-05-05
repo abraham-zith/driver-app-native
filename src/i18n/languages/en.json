@@ -828,6 +828,7 @@
   "stat_payouts": "Daily",
   "stat_transparency": "100%",
   "temporary_bypass": "SKIP FOR NOW",
+  "verify_and_submit": "VERIFY & SUBMIT",
   "verification_required": "Verification Required",
   "verification_required_msg": "You must complete vehicle verification and selfie before proceeding. Navigation is restricted.",
   "verification_time_hint": "Verification usually takes 5-10 seconds",
@@ -1319,5 +1320,7 @@
   "tip_driving": "Ensure license text is readable",
   "tip_aadhar": "No glare, all corners visible",
   "tip_pan": "Upload original PAN card only",
-  "tip_default": "Upload a clear, valid document"
+  "tip_default": "Upload a clear, valid document",
+  "ride_expired_title": "Ride Expired",
+  "ride_expired_msg": "This ride is no longer available or has been accepted by another driver."
 }

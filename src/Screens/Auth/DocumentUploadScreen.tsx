@@ -96,6 +96,13 @@ const DocumentUploadScreen: React.FC<any> = ({ navigation, route }) => {
     });
   };
 
+  const currentStatus = useMemo(() => {
+    const docsArray = Array.isArray(user?.documents_data) ? user.documents_data : [];
+    return docsArray.find((d: any) => d.document_type === backendType);
+  }, [user?.documents_data, backendType]);
+
+  const rejectionReason = currentStatus?.rejection_reason || currentStatus?.remarks;
+
   /* ---------------- CONTINUE ---------------- */
   const handleContinue = async () => {
     if (Object.keys(images).length !== side.length) {
@@ -149,13 +156,24 @@ const DocumentUploadScreen: React.FC<any> = ({ navigation, route }) => {
         documentUrl,
       }).unwrap();
 
+      // Update local state
       const updatedDocs = { ...(user.documents || {}) };
+      const previewUrl = documentUrl.front || Object.values(documentUrl)[0];
+      
       updatedDocs[docKey] = {
-        status: 'UPLOADED',
-        preview: documentUrl.front || documentUrl.back || images.front || images.photo,
+        status: 'pending',
+        preview: previewUrl,
       };
 
-      dispatch(setUser({ documents: updatedDocs }));
+      const profileUpdate: any = { documents: updatedDocs };
+      
+      // 🛡️ Sync profile picture immediately if this is a selfie
+      if (docKey === 'Profile_Selfie' || backendType === 'profile_selfie') {
+        profileUpdate.profile_picture = previewUrl;
+        profileUpdate.profile_pic_url = previewUrl;
+      }
+
+      dispatch(setUser(profileUpdate));
       setIsSubmitting(false);
       navigation.goBack();
     } catch (error) {
@@ -190,11 +208,23 @@ const DocumentUploadScreen: React.FC<any> = ({ navigation, route }) => {
       <AppStatusBar />
       <View style={[Styles.flex, styles.container]}>
         {/* HEADER */}
-        <Text adjustsFontSizeToFit numberOfLines={1} style={[fonts.bold, styles.title]}>
-          {t('upload_doc')} {t(labelKey)}
-        </Text>
+        <View style={{ marginBottom: 20 }}>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={[fonts.bold, styles.title]}>
+            {t('upload_doc')} {t(labelKey)}
+          </Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.subtitle}>{getTip()}</Text>
+        </View>
 
-        <Text adjustsFontSizeToFit numberOfLines={1} style={styles.subtitle}>{getTip()}</Text>
+        {/* REJECTION REASON */}
+        {rejectionReason && (
+          <View style={styles.rejectionBox}>
+            <Ionicons name="alert-circle" size={20} color="#DC2626" />
+            <Text style={styles.rejectionText}>
+              <Text style={[fonts.bold, { color: '#DC2626' }]}>{t('rejection_reason')}: </Text>
+              {rejectionReason}
+            </Text>
+          </View>
+        )}
 
         {/* UPLOAD BOXES */}
         <View style={styles.row}>
@@ -353,5 +383,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.6,
     color: '#6B7280',
+  },
+  rejectionBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  rejectionText: {
+    marginLeft: 10,
+    fontSize: 13,
+    color: '#991B1B',
+    flex: 1,
   },
 });

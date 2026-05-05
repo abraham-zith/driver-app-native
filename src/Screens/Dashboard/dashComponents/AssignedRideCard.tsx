@@ -37,6 +37,7 @@ export type RideItem = {
   booking_type?: 'LIVE' | 'SCHEDULED';
   scheduled_start_time?: string;
   trip_status?: string;
+  noVibrate?: boolean;
 };
 
 type Props = {
@@ -61,7 +62,7 @@ const TripTypeBadge = ({ type }: { type: string }) => {
 
   return (
     <View style={[styles.tripTypeBadge, { backgroundColor: bgColor, borderColor: color }]}>
-      <Text style={[styles.tripTypeText, { color: color }]}>{type}</Text>
+      <Text style={[styles.tripTypeText, { color: color }]} numberOfLines={1}>{type}</Text>
     </View>
   );
 };
@@ -107,11 +108,18 @@ const AssignedRideCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
   }, [badgePulse]);
 
   /* ---------- SOUND + VIBRATION ---------- */
+  /* ---------- SOUND + VIBRATION ---------- */
   useEffect(() => {
+    // User requested NO vibration for assigned request card show
+    if (item.noVibrate) {
+      console.log('Skipping initial alert for notification ride');
+      return;
+    }
+
     const playSound = () => {
       try {
         SoundPlayer.playSoundFile('notification', 'mp3');
-        Vibration.vibrate([0, 500, 200, 500], true);
+        // Vibration.vibrate([0, 500, 200, 500], true); // Disabled as per user request
       } catch (e) {
         console.log('SoundPlayer error:', e);
       }
@@ -127,7 +135,7 @@ const AssignedRideCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
         console.log('Sound/Vibration stop error:', e);
       }
     };
-  }, []);
+  }, [item.noVibrate]);
 
   /* ---------- ACTIONS ---------- */
   const handleAccept = useCallback(() => {
@@ -166,16 +174,16 @@ const AssignedRideCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
           style={styles.cardHeaderGradient}
         >
           <View style={styles.cardHeader}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginRight: s(10) }}>
               <View style={styles.assignmentLabelRow}>
                 <Ionicons name="ribbon" size={ms(16)} color="#FBBF24" style={{ marginRight: s(4) }} />
-                <Text style={styles.assignmentLabelText}>EXCLUSIVE ASSIGNMENT</Text>
+                <Text style={styles.assignmentLabelText} numberOfLines={1}>EXCLUSIVE ASSIGNMENT</Text>
               </View>
-              <Text style={styles.cardHeaderText}>New Direct Request</Text>
+              <Text style={styles.cardHeaderText} numberOfLines={2}>New Direct Request</Text>
               <View style={styles.badgeRow}>
                 {item.ride_type && <TripTypeBadge type={item.ride_type} />}
                 <View style={styles.priorityTag}>
-                  <Text style={styles.priorityTagText}>HIGH PRIORITY</Text>
+                  <Text style={styles.priorityTagText} numberOfLines={1}>HIGH PRIORITY</Text>
                 </View>
               </View>
             </View>
@@ -184,7 +192,7 @@ const AssignedRideCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
               <Text style={styles.price}>{item.price}</Text>
               <RNAnimated.View style={{ transform: [{ scale: badgePulse }] }}>
                  <View style={styles.assignedBadge}>
-                    <Text style={styles.assignedBadgeText}>ASSIGNED</Text>
+                    <Text style={styles.assignedBadgeText} numberOfLines={1}>ASSIGNED</Text>
                  </View>
               </RNAnimated.View>
             </View>
@@ -206,7 +214,7 @@ const AssignedRideCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
             </View>
             <View style={styles.confirmedBadge}>
                <Ionicons name="shield-checkmark" size={ms(14)} color="#10B981" />
-               <Text style={styles.confirmedText}>VERIFIED</Text>
+               <Text style={styles.confirmedText} numberOfLines={1}>VERIFIED</Text>
             </View>
           </View>
 
@@ -294,15 +302,15 @@ const AssignedRideCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
 export default AssignedRideCard;
 
 const styles = StyleSheet.create({
-  cardWrapper: { marginHorizontal: s(16) },
+  cardWrapper: { width: SCREEN_WIDTH - s(40), alignSelf: 'center' },
   card: {
     backgroundColor: '#fff',
-    borderRadius: ms(24),
+    borderRadius: ms(8),
     overflow: 'hidden',
     elevation: 25,
     shadowColor: '#4F46E5',
     shadowOpacity: 0.3,
-    shadowRadius: 20,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 12 },
   },
   contentPadding: { padding: s(20) },
@@ -357,9 +365,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: s(16), 
     paddingVertical: vs(12), 
     borderRadius: ms(14), 
-    backgroundColor: '#FEF2F2', 
+    backgroundColor: '#FEE2E2', 
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
   },
   passText: { color: '#EF4444', fontWeight: '800', fontSize: ms(13) },
   acceptBtn: {
@@ -380,7 +388,7 @@ const styles = StyleSheet.create({
   },
   acceptText: {
     color: '#fff',
-    fontSize: ms(16),
+    fontSize: ms(12),
     fontWeight: '900',
     marginLeft: s(8),
     letterSpacing: 0.5,

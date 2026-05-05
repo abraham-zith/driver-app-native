@@ -14,6 +14,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 import { calculateAverageRating } from '../../utils/ratingUtils';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -87,6 +88,19 @@ const DriverDashboard = () => {
   const myAcceptedRideId = useSelector((state: RootState) => state.ride?.myAcceptedRideId);
   const isOnline = !!user?.isOnline;
   const dispatch = useDispatch();
+
+  // ── VERIFICATION GUARD ──
+  // Redirect unapproved drivers back to DocumentScreen
+  const APPROVED_STATUSES = ['DOCUMENTS_APPROVED', 'DOCUMENTS_VERIFIED', 'SUBSCRIPTION_ACTIVE', 'ACTIVE'];
+  useEffect(() => {
+    const status = user?.onboarding_status;
+    if (user && status && !APPROVED_STATUSES.includes(status)) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'DocumentScreen' }],
+      });
+    }
+  }, [user?.onboarding_status]);
 
   const [goOnline] = useGoOnlineMutation();
   const [goOffline] = useGoOfflineMutation();
@@ -174,7 +188,7 @@ const DriverDashboard = () => {
         scheduled_start_time: timeVal,
         startTime: new Date(timeVal).getTime(),
         customer: {
-          name: tripData.passenger_name || tripData.customer?.name || 'Customer',
+          name: tripData.user_details?.full_name || tripData.user_details?.first_name || tripData.passenger_details?.name || tripData.passenger_name || tripData.customer?.name || 'Customer',
           ratingGiven: tripData.rating || tripData.user_rating || tripData.trip_rating || undefined,
           comment: tripData.feedback || tripData.comment || tripData.user_feedback || '',
         },
@@ -233,14 +247,20 @@ const DriverDashboard = () => {
     icon: 'information-circle-outline',
     isDestructive: false,
     singleButton: true,
+    confirmText: undefined as string | undefined,
+    cancelText: undefined as string | undefined,
     onConfirm: () => setAlertModalVisible(false),
+    onCancel: () => setAlertModalVisible(false),
   });
 
   const showAlert = useCallback((title: string, message: string, options?: {
     icon?: string,
     isDestructive?: boolean,
     singleButton?: boolean,
-    onConfirm?: () => void
+    confirmText?: string,
+    cancelText?: string,
+    onConfirm?: () => void,
+    onCancel?: () => void
   }) => {
     setAlertModalConfig({
       title,
@@ -248,7 +268,10 @@ const DriverDashboard = () => {
       icon: options?.icon || 'information-circle-outline',
       isDestructive: options?.isDestructive || false,
       singleButton: options?.singleButton !== undefined ? options.singleButton : true,
+      confirmText: options?.confirmText,
+      cancelText: options?.cancelText,
       onConfirm: options?.onConfirm || (() => setAlertModalVisible(false)),
+      onCancel: options?.onCancel || (() => setAlertModalVisible(false)),
     });
     setAlertModalVisible(true);
   }, []);
@@ -289,6 +312,9 @@ const DriverDashboard = () => {
   useFocusEffect(
     useCallback(() => {
       if (!user?.driverId) return;
+
+
+
       const checkSosContacts = async () => {
         try {
           const response = await axiosInstance.get('/sos/contacts');
@@ -298,6 +324,7 @@ const DriverDashboard = () => {
         } catch (error) {
         }
       };
+
       checkSosContacts();
     }, [user?.driverId])
   );
@@ -459,9 +486,10 @@ const DriverDashboard = () => {
         <DashboardProfileHeader
           isOnline={isOnline}
           driverName={driverName}
-          currentAddress={currentAddress}
           rating={user?.rating}
+          profileImage={user?.profile_picture}
           onSettingsPress={() => setSettingsVisible(true)}
+          onProfilePress={() => navigation.navigate('Profile')}
           subscription={subData?.data?.subscription}
         />
 
@@ -508,6 +536,7 @@ const DriverDashboard = () => {
         {/* ── MAP ── */}
         <DashboardMap
           userLocation={userLocation}
+          currentAddress={currentAddress}
           isOnline={isOnline}
           routeCoordinates={route}
         />
@@ -526,7 +555,7 @@ const DriverDashboard = () => {
                 </View>
               </View>
               <TouchableOpacity onPress={() => setIsSosDismissed(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={ms(20)} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Text style={{ fontSize: ms(10), color: isDark ? '#94A3B8' : '#64748B', fontWeight: '500' }}>Close</Text>
               </TouchableOpacity>
             </View>
 
@@ -541,6 +570,8 @@ const DriverDashboard = () => {
             </View>
           </Animated.View>
         )}
+
+
 
         {/* ── TODAY'S OVERVIEW ── */}
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('todays_overview')}</Text>
@@ -601,7 +632,13 @@ const DriverDashboard = () => {
                   }
                 };
 
-                if (item.trip_status === 'ASSIGNED' || item.trip_status === TripStatus.ASSIGNED) {
+                const isAssigned = item.trip_status?.toString().toUpperCase() === 'ASSIGNED' ||
+                  item.trip_status?.toString().toUpperCase() === 'TRIP_ASSIGNED' ||
+                  item.trip_status?.toString().toUpperCase() === 'ASSIGNED_RIDE';
+
+                console.log(`[Dashboard] Rendering Ride: ${item.id} | Status: ${item.trip_status} | isAssigned: ${isAssigned}`);
+
+                if (isAssigned) {
                   return (
                     <AssignedRideCard
                       key={item.id || `ride-${index}`}
@@ -635,7 +672,7 @@ const DriverDashboard = () => {
                 onPress={() => setShowOfflineSwipe(false)}
                 style={{ position: 'absolute', right: s(16), top: vs(12), zIndex: 1100 }}
               >
-                <Ionicons name="close" size={ms(24)} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Text style={{ fontSize: ms(14), color: isDark ? '#94A3B8' : '#64748B', fontWeight: '500' }}>Close</Text>
               </TouchableOpacity>
             )}
             <Text style={[styles.swipeTitle, { color: theme.colors.text }]}>
@@ -682,19 +719,60 @@ const DriverDashboard = () => {
                     return;
                   }
 
-                  try {
-                    const res = await goOnline(currentDriverId).unwrap();
-                    dispatch(setOnlineStatus(true));
-                    if (res?.upcomingRide) {
-                      showAlert('Upcoming Ride', `You have a scheduled ride starting soon at ${res.upcomingRide.pickup_address}`, { icon: 'calendar-outline' });
+                  const proceedToOnline = async () => {
+                    try {
+                      const res = await goOnline(currentDriverId).unwrap();
+                      dispatch(setOnlineStatus(true));
+                      if (res?.upcomingRide) {
+                        showAlert('Upcoming Ride', `You have a scheduled ride starting soon at ${res.upcomingRide.pickup_address}`, { icon: 'calendar-outline' });
+                      }
+                    } catch (e: any) {
+                      showAlert('Error', e?.data?.message || 'Failed to go online', { icon: 'alert-circle-outline', isDestructive: true });
                     }
-                  } catch (e: any) {
-                    showAlert('Error', e?.data?.message || 'Failed to go online', { icon: 'alert-circle-outline', isDestructive: true });
                     setShowOfflineSwipe(false);
+                  };
+
+                  if (Platform.OS === 'android') {
+                    try {
+                      const notifee = (await import('@notifee/react-native')).default;
+                      const isOptimized = await notifee.isBatteryOptimizationEnabled();
+                      if (isOptimized) {
+                        showAlert(
+                          'Background Priority',
+                          `To receive ride requests reliably, please change the battery setting for vDrive to "Unrestricted" or "Don't Optimize".`,
+                          {
+                            icon: 'battery-dead',
+                            singleButton: false,
+                            confirmText: 'Fix Now',
+                            cancelText: 'Skip',
+                            onConfirm: () => {
+                              Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS').catch(() => {
+                                Linking.openSettings();
+                              });
+                              setAlertModalVisible(false);
+                              setShowOfflineSwipe(false);
+                            },
+                            onCancel: () => {
+                              proceedToOnline();
+                            }
+                          }
+                        );
+                        return;
+                      }
+                    } catch (e) {
+                      console.log('Battery check failed', e);
+                    }
                   }
+
+                  proceedToOnline();
                 } else {
                   // 🛡️ Safety: Prevent going offline if on an active ride
-                  if (currentRide) {
+                  const isActiveTrip = currentRide && (
+                    currentRide.booking_type === 'LIVE' ||
+                    ['ARRIVING', 'ARRIVED', 'LIVE', 'ON_TRIP', 'DESTINATION_REACHED'].includes(currentRide.trip_status)
+                  );
+
+                  if (isActiveTrip) {
                     showAlert(
                       t('cannot_go_offline') || 'Cannot Go Offline',
                       t('complete_current_trip') || 'Please complete your current trip before going offline.',
@@ -803,13 +881,18 @@ const DriverDashboard = () => {
 
       <ConfirmationModal
         isVisible={alertModalVisible}
-        onClose={() => setAlertModalVisible(false)}
+        onClose={() => {
+          setAlertModalVisible(false);
+          if (alertModalConfig.onCancel) alertModalConfig.onCancel();
+        }}
         onConfirm={alertModalConfig.onConfirm}
         title={alertModalConfig.title}
         message={alertModalConfig.message}
         icon={alertModalConfig.icon}
         isDestructive={alertModalConfig.isDestructive}
         singleButton={alertModalConfig.singleButton}
+        confirmText={alertModalConfig.confirmText}
+        cancelText={alertModalConfig.cancelText}
       />
 
       <RatingReceivedModal
@@ -877,9 +960,8 @@ const styles = StyleSheet.create({
   rideScrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: vs(50),
-    paddingHorizontal: s(20),
+    paddingHorizontal: s(16),
   },
   swipeBox: {
     position: 'absolute',

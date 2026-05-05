@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
         width: '48.5%',
         borderRadius: ms(20),
         padding: ms(16),
-        height: vs(150),
+        height: vs(135),
         justifyContent: 'space-between',
     },
     walletCard: {

@@ -246,35 +246,15 @@ const Onboarding = ({ navigation }: any) => {
 
           {/* BOTTOM CTA */}
           <View style={styles.bottomContainer}>
-            {/* 🚧 REAL BUTTON — UNCOMMENT FOR PRODUCTION
             <TouchableOpacity
               style={[styles.verificationButton, { backgroundColor: colors.primary }]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate(OnboardingSos_Nav, { nextScreen: DocumentScreen_Nav })}
+              onPress={() => navigation.navigate(DocumentScreen_Nav)}
             >
-            <Text style={styles.verificationButtonText}>
-              Verify Documents to Start Earning
-            </Text>
-            <Ionicons name="shield-checkmark" size={20} color="#FFF" style={{ marginLeft: 8 }} />
-          </TouchableOpacity>
-          */}
-
-            {/* 🚧 TEMPORARY BYPASS — REMOVE BEFORE PRODUCTION */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate(OnboardingSos_Nav, { nextScreen: Dashboard_Nav })}
-              style={styles.premiumButtonWrapper}
-            >
-              <LinearGradient
-                colors={['#0d4780', '#0a3d6d', '#08335a']}
-                style={styles.premiumButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text adjustsFontSizeToFit numberOfLines={1} style={styles.premiumButtonText}>
-                  {t('skip_to_dashboard', 'Skip to Dashboard')}
-                </Text>
-              </LinearGradient>
+              <Text style={styles.verificationButtonText}>
+                {t('verify_docs_to_start', 'Verify Documents to Start Earning')}
+              </Text>
+              <Ionicons name="shield-checkmark" size={20} color="#FFF" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </View>
 

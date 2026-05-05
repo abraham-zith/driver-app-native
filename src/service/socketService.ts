@@ -17,6 +17,7 @@ class SocketService {
   private connectionListeners: ((connected: boolean) => void)[] = [];
   public isConnected: boolean = false;
   private locationWatchId: number | null = null;
+  private driverId: string | null = null;
   private lastSocketError: string | null = null;
   private lastSocketErrorTime: number = 0;
 
@@ -62,6 +63,11 @@ class SocketService {
           this.currentRoomContext.role
         );
       }
+
+      if (this.driverId) {
+        console.log('🔄 Re-joining driver room:', this.driverId);
+        this.socket?.emit('JOIN_DRIVER_ROOM', this.driverId);
+      }
     });
 
     this.socket.on('disconnect', (reason: string) => {
@@ -104,12 +110,9 @@ class SocketService {
       }
     });
 
-    this.socket.on('NEW_TRIP_REQUEST', (data: any) => {
-      console.log('🆕 New trip received:', data);
-      if (this.onTripUpdateCallback) {
-        this.onTripUpdateCallback(data);
-      }
-    });
+    // NOTE: NEW_TRIP_REQUEST is handled via persistent listeners registered
+    // by useRideFeed (socketService.on). Do NOT add a hardcoded listener here
+    // to avoid duplicate processing.
   }
 
   joinTripRoom(tripId: string, userId?: string, role?: string) {
@@ -136,6 +139,17 @@ class SocketService {
     }
     
     this.currentRoomContext = null;
+  }
+
+  joinDriverRoom(driverId: string) {
+    if (!driverId) return;
+    this.driverId = driverId;
+    if (this.socket?.connected) {
+      console.log('📡 Emitting JOIN_DRIVER_ROOM:', driverId);
+      this.socket.emit('JOIN_DRIVER_ROOM', driverId);
+    } else {
+      console.log('⏳ Socket not connected, JOIN_DRIVER_ROOM will happen on connect:', driverId);
+    }
   }
 
   emit(event: string, data: any, callback?: (res: any) => void) {
@@ -183,6 +197,23 @@ class SocketService {
 
   offTripRated() {
     this.socket?.off('TRIP_RATED');
+  }
+
+  // ✅ Trip Verification listeners
+  onTripVerificationApproved(callback: (data: any) => void) {
+    this.on('TRIP_VERIFICATION_APPROVED', callback);
+  }
+
+  offTripVerificationApproved(callback?: (data: any) => void) {
+    this.off('TRIP_VERIFICATION_APPROVED', callback);
+  }
+
+  onTripVerificationRejected(callback: (data: any) => void) {
+    this.on('TRIP_VERIFICATION_REJECTED', callback);
+  }
+
+  offTripVerificationRejected(callback?: (data: any) => void) {
+    this.off('TRIP_VERIFICATION_REJECTED', callback);
   }
 
   emitLocationUpdate(

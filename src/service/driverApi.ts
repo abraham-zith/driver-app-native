@@ -110,7 +110,7 @@ export const driverApi = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Documents'],
+      invalidatesTags: ['Documents', 'Driver'],
     }),
 
     // Submit all documents for review
@@ -130,7 +130,7 @@ export const driverApi = createApi({
       selfie_url: string;
       car_images: string[];
       car_image_url?: string;
-      ride_id?: string;
+      trip_id?: string;
     }>({
       query: ({ driverId, ...body }) => ({
         url: `/drivers/trip-verification/submit/${driverId}`,
@@ -303,7 +303,7 @@ export const driverApi = createApi({
       providesTags: ['Driver'],
     }),
     getTripById: builder.query<any, string>({
-      query: (tripId) => `/trips/${tripId}`,
+      query: (tripId) => `/trips/bytripid/${tripId}`,
       providesTags: ['Driver'],
     }),
     getTodayOverview: builder.query<any, string>({

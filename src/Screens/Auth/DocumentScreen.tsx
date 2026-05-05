@@ -1,12 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
   StyleSheet,
   Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '@react-navigation/native';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { RootState } from '../../redux/store';
@@ -15,6 +16,7 @@ import Button from '../../Components/Button';
 import {
   useSubmitDocumentsMutation,
   useGetDriverDocumentsQuery,
+  useLazyGetDriverProfileQuery,
 } from '../../service/driverApi';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useAlert } from '../../context/AlertContext';
@@ -46,6 +48,7 @@ interface DocumentItem {
   typeKey: string;
   hintKey: string;
   side: ('front' | 'back')[];
+  required?: boolean;
 }
 
 /* ================= SCREEN ================= */
@@ -66,6 +69,7 @@ const DocumentScreen = ({ navigation }: any) => {
       typeKey: 'docs_front_back',
       hintKey: 'docs_hint_dl',
       side: ['front', 'back'],
+      required: true,
     },
     {
       key: 'Pan_Card',
@@ -75,6 +79,7 @@ const DocumentScreen = ({ navigation }: any) => {
       typeKey: 'docs_front_only',
       hintKey: 'docs_hint_pan',
       side: ['front'],
+      required: true,
     },
     {
       key: 'Aadhar_Card',
@@ -84,6 +89,7 @@ const DocumentScreen = ({ navigation }: any) => {
       typeKey: 'docs_front_back',
       hintKey: 'docs_hint_aadhar',
       side: ['front', 'back'],
+      required: true,
     },
     {
       key: 'Police_Verification',
@@ -93,6 +99,7 @@ const DocumentScreen = ({ navigation }: any) => {
       typeKey: 'docs_certificate',
       hintKey: 'docs_hint_police',
       side: ['front'],
+      required: false,
     },
     {
       key: 'Profile_Selfie',
@@ -102,10 +109,12 @@ const DocumentScreen = ({ navigation }: any) => {
       typeKey: 'docs_headshot',
       hintKey: 'docs_hint_selfie',
       side: ['front'],
+      required: true,
     },
   ], []);
 
   const [submitDocuments, { isLoading: isSubmitting }] = useSubmitDocumentsMutation();
+  const [fetchProfile] = useLazyGetDriverProfileQuery();
 
   const user = useSelector((state: RootState) => state.userSlice.user);
   const { data: remoteDocs, refetch, isFetching } = useGetDriverDocumentsQuery(user?.driverId || '', {
@@ -113,37 +122,101 @@ const DocumentScreen = ({ navigation }: any) => {
     refetchOnMountOrArgChange: true,
   });
 
-
   const isWaitingForAdmin = user?.onboarding_status === 'DOCS_SUBMITTED';
+  const isDocsRejected = user?.onboarding_status === 'DOCS_REJECTED';
+
+  // Poll for status changes while on the waiting screen
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (remoteDocs) {
+      const docsArray = Array.isArray(remoteDocs) ? remoteDocs : (remoteDocs?.data ?? []);
+      dispatch(setUser({ documents_data: docsArray }));
+    }
+  }, [remoteDocs, dispatch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isWaitingForAdmin && user?.driverId) {
+        // Poll every 10s to check if admin approved/rejected
+        pollRef.current = setInterval(async () => {
+          try {
+            await refetch();
+            // Re-fetch driver profile to get latest onboarding_status
+            const profileResult = await fetchProfile().unwrap();
+            const profile = profileResult?.data || profileResult;
+            if (profile?.onboarding_status && profile.onboarding_status !== user?.onboarding_status) {
+              // Sync whole profile to get status, status_reason, etc.
+              dispatch(setUser(profile));
+            }
+          } catch (_) {}
+        }, 10000);
+      }
+      return () => {
+        if (pollRef.current) clearInterval(pollRef.current);
+      };
+    }, [isWaitingForAdmin, user?.driverId])
+  );
+
+  // 🛡️ Navigate away if onboarding status changes to complete (e.g. via Socket or Polling)
+  useEffect(() => {
+    const status = user?.onboarding_status;
+    const accountStatus = user?.status;
+    const kycStatus = user?.kyc_status;
+    const kycStatusStr = typeof kycStatus === 'object' ? kycStatus?.overallStatus : kycStatus;
+
+    if (
+      status === 'DOCUMENTS_APPROVED' ||
+      status === 'DOCUMENTS_VERIFIED' ||
+      status === 'ONBOARDING_COMPLETED' ||
+      status === 'ACTIVE' ||
+      accountStatus === 'active' ||
+      kycStatusStr === 'verified'
+    ) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      navigation.replace(Dashboard_Nav);
+    }
+  }, [user?.onboarding_status, user?.status, user?.kyc_status, navigation]);
 
   /* ---------------- PROGRESS ---------------- */
 
   const getDocState = React.useCallback((doc: DocumentItem) => {
     const docsArray = Array.isArray(remoteDocs) ? remoteDocs : (remoteDocs?.data ?? []);
-    const remoteDoc = docsArray.find((d: any) => d.document_type === doc.backendType);
+    let remoteDoc = docsArray.find((d: any) => d.document_type === doc.backendType);
+
+    // If not in remoteDocs, check if user.documents is an array (from profile API)
+    if (!remoteDoc && Array.isArray(user?.documents)) {
+      remoteDoc = user?.documents.find((d: any) => d.document_type === doc.backendType || d.documentType === doc.backendType);
+    }
+
     if (remoteDoc) {
       return {
-        status: remoteDoc.status, 
-        preview: remoteDoc.document_url?.front || remoteDoc.document_url,
+        status: remoteDoc.status || remoteDoc.license_status || remoteDoc.licenseStatus, 
+        preview: remoteDoc.document_url?.front || remoteDoc.document_url || remoteDoc.documentUrl,
         rejection_reason: remoteDoc.rejection_reason || remoteDoc.remarks,
       };
     }
-    const docs = user?.documents || {};
+
+    // Fallback for local redux state which uses dictionary format
+    const docs = (!Array.isArray(user?.documents) ? user?.documents : {}) as Record<string, any>;
     return docs?.[doc.key] || {};
   }, [remoteDocs, user?.documents]);
 
+  const requiredDocuments = useMemo(() => DOCUMENTS.filter(d => d.required), [DOCUMENTS]);
+
   const uploadedCount = useMemo(() => {
-    return DOCUMENTS.filter(doc => {
+    return requiredDocuments.filter(doc => {
       const state = getDocState(doc);
-      return state.status === 'UPLOADED' || state.status === 'pending' || state.status === 'verified';
+      const currentStatus = (state.status || '').toLowerCase();
+      return currentStatus === 'uploaded' || currentStatus === 'pending' || currentStatus === 'verified';
     }).length;
-  }, [getDocState, DOCUMENTS]);
+  }, [getDocState, requiredDocuments]);
 
   const progress = Math.round(
-    (uploadedCount / DOCUMENTS.length) * 100
+    (uploadedCount / requiredDocuments.length) * 100
   );
 
-  const allUploaded = uploadedCount === DOCUMENTS.length;
+  const allUploaded = uploadedCount === requiredDocuments.length;
 
   const handleSubmit = async () => {
     if (!user?.driverId) { return; }
@@ -153,13 +226,11 @@ const DocumentScreen = ({ navigation }: any) => {
       dispatch(setUser({ onboarding_status: 'DOCS_SUBMITTED' }));
       showAlert({
         title: t('success'),
-        message: t('docs_submit_success'),
+        message: t('docs_submit_success') || 'Documents submitted successfully! Please wait while our team reviews them.',
         singleButton: true,
         icon: 'checkmark-circle-outline',
-        onConfirm: () => {
-          navigation.replace(Dashboard_Nav);
-        }
       });
+      // The waiting modal will automatically appear since onboarding_status is now DOCS_SUBMITTED
     } catch (error: any) {
       console.error('Failed to submit docs:', error);
       showAlert({
@@ -179,10 +250,12 @@ const DocumentScreen = ({ navigation }: any) => {
       edges={['top', 'bottom']}
     >
       <AppStatusBar />
-      {/* --- WAITING MODAL --- */}
+      {/* --- WAITING MODAL (No skip allowed) --- */}
       <Modal visible={isWaitingForAdmin} animationType="slide">
         <View style={styles.waitingContainer}>
-          <Ionicons name="time-outline" size={80} color={colors.primary} />
+          <View style={styles.waitingIconBg}>
+            <Ionicons name="time-outline" size={60} color={colors.primary} />
+          </View>
           <Text 
             adjustsFontSizeToFit 
             numberOfLines={1} 
@@ -193,12 +266,21 @@ const DocumentScreen = ({ navigation }: any) => {
           <Text style={styles.waitingDesc}>
             {t('docs_review_desc')}
           </Text>
-          <Button 
-            style={{ width: '80%', marginTop: 30 }} 
-            onPress={() => navigation.replace(Dashboard_Nav)}
+          <View style={styles.waitingInfoCard}>
+            <Ionicons name="information-circle-outline" size={20} color="#6366F1" />
+            <Text style={styles.waitingInfoText}>
+              {t('docs_review_info') || 'You will be notified once your documents are verified. This usually takes 24-48 hours.'}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.contactSupportBtn}
+            onPress={() => Linking.openURL('tel:+919876543210')}
           >
-            {t('skip_to_dashboard')}
-          </Button>
+            <Ionicons name="call-outline" size={18} color={colors.primary} />
+            <Text style={[fonts.medium, { color: colors.primary, marginLeft: 8 }]}>
+              {t('contact_support') || 'Contact Support'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </Modal>
 
@@ -215,11 +297,26 @@ const DocumentScreen = ({ navigation }: any) => {
           </Text>
         </View>
 
+        {/* REJECTION BANNER */}
+        {(isDocsRejected || user?.status === 'rejected' || user?.status === 'blocked') && (
+          <View style={[styles.rejectionBanner, (user?.status === 'blocked' || user?.status === 'rejected') && { borderLeftColor: '#EF4444' }]}>
+            <Ionicons name="warning-outline" size={22} color="#DC2626" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={[fonts.bold, { color: '#DC2626', fontSize: 14 }]}>
+                {user?.status === 'blocked' ? (t('account_restricted') || 'Account Restricted') : (t('docs_rejected_title') || 'Documents Need Correction')}
+              </Text>
+              <Text style={{ color: '#7F1D1D', fontSize: 12, marginTop: 2 }}>
+                {user?.status_reason || t('docs_rejected_desc') || 'Some documents were rejected. Please re-upload the highlighted items below.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* PROGRESS BAR */}
         <View style={styles.progressCard}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
             <Text style={[fonts.medium, { color: colors.text }]}>
-              {uploadedCount} / {DOCUMENTS.length} {t('uploaded')}
+              {uploadedCount} / {requiredDocuments.length} {t('uploaded')}
             </Text>
             <Text style={[fonts.bold, { color: colors.primary }]}>{progress}%</Text>
           </View>
@@ -231,8 +328,9 @@ const DocumentScreen = ({ navigation }: any) => {
         {/* LIST */}
         {DOCUMENTS.map((doc) => {
           const state = getDocState(doc);
-          const isDone = state.status === 'UPLOADED' || state.status === 'pending' || state.status === 'verified';
-          const isRejected = state.status === 'rejected' || state.status === 'REJECTED';
+          const currentStatus = (state.status || '').toLowerCase();
+          const isDone = currentStatus === 'uploaded' || currentStatus === 'pending' || currentStatus === 'verified';
+          const isRejected = currentStatus === 'rejected';
 
           return (
             <TouchableOpacity
@@ -249,7 +347,7 @@ const DocumentScreen = ({ navigation }: any) => {
 
               <View style={{ flex: 1, marginLeft: 15 }}>
                 <Text adjustsFontSizeToFit numberOfLines={1} style={[fonts.bold, { fontSize: 16, color: colors.text }]}>
-                  {t(doc.labelKey)}
+                  {t(doc.labelKey)} {!doc.required && `(${t('optional')})`}
                 </Text>
                 <Text adjustsFontSizeToFit numberOfLines={1} style={{ fontSize: 12, color: colors.text, opacity: 0.5 }}>
                   {t(doc.typeKey)} • {t(doc.hintKey)}
@@ -350,5 +448,52 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     marginTop: 15,
     lineHeight: 24,
+  },
+  waitingIconBg: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  waitingInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#EEF2FF',
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 30,
+    width: '100%',
+  },
+  waitingInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#4338CA',
+    marginLeft: 10,
+    lineHeight: 20,
+  },
+  contactSupportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E0E7FF',
+    backgroundColor: '#F5F3FF',
+  },
+  rejectionBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 20,
   },
 });

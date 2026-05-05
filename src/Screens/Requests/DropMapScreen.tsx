@@ -622,7 +622,7 @@ const DropMapScreen = ({ route }: any) => {
     navigation.navigate(ChatScreen_Nav, {
       rideId: trip_id,
       userId: user?.driverId,
-      userName: ride.passenger || t('rider'),
+      userName: ride.passenger || ride.passenger_details?.name || ride.passenger_name || ride.customer?.name || t('rider'),
       userImage: ride.passenger_details?.image || ride.riderImage,
       userPhone: ride.phone || ride.riderPhone || ride.customer?.phone || ride.passenger_phone,
     });
