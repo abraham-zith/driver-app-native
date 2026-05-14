@@ -56,6 +56,11 @@
            android:name="com.google.android.geo.API_KEY"
            android:value="AIzaSyCWGzSmu6tKxCRSan4p0z_7juXDNdZcG3s"/>
 
+       <!-- ML Kit: Auto-download face detection model on install -->
+       <meta-data
+           android:name="com.google.mlkit.vision.DEPENDENCIES"
+           android:value="face" />
+
        <meta-data
            android:name="com.google.firebase.messaging.default_notification_icon"
            android:resource="@drawable/ic_notification"

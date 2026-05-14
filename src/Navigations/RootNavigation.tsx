@@ -18,6 +18,7 @@ import {
   LegalAgreements_Nav,
   DocumentScreen_Nav,
   DocumentUploadScreen_Nav,
+  SmartSelfieScreen_Nav,
   PersonalDetails_Nav,
   AddressDetails_Nav,
   ProfileDetails_Nav,
@@ -71,6 +72,7 @@ import EmergencySupportScreen from '../Screens/Profile/Support/EmergencySupportS
 import LegalAgreementsScreen from '../Screens/Profile/Support/LegalAgreementsScreen';
 import DocumentScreen from '../Screens/Auth/DocumentScreen';
 import DocumentUploadScreen from '../Screens/Auth/DocumentUploadScreen';
+import SmartSelfieScreen from '../Screens/Auth/SmartSelfieScreen';
 import PersonalDetails from '../Screens/Auth/PersonalDetails';
 import AddressDetails from '../Screens/Auth/AddressDetails';
 import VehicleVerificationScreen from '../Screens/Requests/VehicleVerificationScreen';
@@ -324,6 +326,7 @@ const RootNavigation = () => {
           {/* -------- DOCUMENTS -------- */}
           <Stack.Screen name={DocumentScreen_Nav} component={DocumentScreen} />
           <Stack.Screen name={DocumentUploadScreen_Nav} component={DocumentUploadScreen} />
+          <Stack.Screen name={SmartSelfieScreen_Nav} component={SmartSelfieScreen} options={{ headerShown: false, presentation: 'modal' }} />
 
           {/* -------- DASHBOARD -------- */}
           <Stack.Screen name={Dashboard_Nav} component={DriverTabs} />

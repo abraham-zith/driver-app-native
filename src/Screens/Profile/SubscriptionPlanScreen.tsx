@@ -128,7 +128,7 @@ const RechargeSkeleton = () => {
 
 const PromoCoupon = ({ promo, tierColor, onApply, onCopy }: { promo: any; tierColor: string; onApply: (code: string) => void; onCopy: (code: string) => void }) => {
   const isPercentage = promo.discount_type === 'percentage';
-  
+
   return (
     <View style={styles.couponOuterContainer}>
       {/* Top Grab deal badge - Slanted Premium Tag */}
@@ -136,7 +136,7 @@ const PromoCoupon = ({ promo, tierColor, onApply, onCopy }: { promo: any; tierCo
         <Text style={[styles.grabDealText, { color: tierColor }]}>GRAB THE DEAL!</Text>
       </View>
 
-      <Pressable 
+      <Pressable
         onPress={() => onApply(promo.code)}
         style={({ pressed }) => [
           styles.couponCard,
@@ -149,7 +149,7 @@ const PromoCoupon = ({ promo, tierColor, onApply, onCopy }: { promo: any; tierCo
             <View key={`l-${i}`} style={styles.scallopCircleSmall} />
           ))}
         </View>
-        
+
         {/* Scalloped edges - Right */}
         <View style={styles.scallopedEdgeRight}>
           {[...Array(6)].map((_, i) => (
@@ -172,15 +172,15 @@ const PromoCoupon = ({ promo, tierColor, onApply, onCopy }: { promo: any; tierCo
           {/* Right Portion: OFF and Code */}
           <View style={styles.couponRight}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-               <Text style={styles.couponOffText}>{promo.label || (isPercentage ? '% OFF' : 'OFF')}</Text>
-               <Pressable 
+              <Text style={styles.couponOffText}>{promo.label || (isPercentage ? '% OFF' : 'OFF')}</Text>
+              <Pressable
                 onPress={() => onCopy(promo.code)}
                 style={styles.couponCopyIcon}
               >
                 <Ionicons name="copy-outline" size={14} color="rgba(255,255,255,0.7)" />
               </Pressable>
             </View>
-            
+
             <Text style={styles.couponDescription} numberOfLines={1}>
               {promo.description || 'Limited time offer'}
             </Text>
@@ -244,16 +244,16 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
   const handleApplyPromo = async (codeOverride?: string) => {
     const codeToUse = codeOverride || promoInput;
     if (!codeToUse.trim()) return;
-    
+
     setIsValidatingPromo(true);
     triggerHaptic(HapticFeedbackTypes.impactLight);
-    
+
     try {
       const result = await validatePromo({
         code: codeToUse,
         amount: currentPrice
       }).unwrap();
-      
+
       if (result.success && result.data.isValid) {
         setAppliedPromoCode(codeToUse);
         setPromoInput(codeToUse);
@@ -532,7 +532,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom', 'left', 'right']}>
         {isFocused && <AppStatusBar forceLight={true} />}
- 
+
         <ScrollView
           contentContainerStyle={styles.scrollView}
           showsVerticalScrollIndicator={false}
@@ -563,16 +563,16 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
       </SafeAreaView>
     );
   }
- 
+
   if (planTiers.length === 0) {
-     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom', 'left', 'right']}>
-           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-              <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-              <Text style={{ marginTop: 12, color: '#9CA3AF', fontSize: 16 }}>No plans available at the moment</Text>
-           </View>
-        </SafeAreaView>
-     );
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
+          <Text style={{ marginTop: 12, color: '#9CA3AF', fontSize: 16 }}>No plans available at the moment</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -597,7 +597,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-        
+
 
           {/* Promo Banner */}
 
@@ -605,8 +605,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
           {/* Title Section */}
 
           <View style={[styles.headerContainer, { marginTop: insets.top + 5 }]}>
-            <Pressable 
-              onPress={() => navigation.goBack()} 
+            <Pressable
+              onPress={() => navigation.goBack()}
               style={({ pressed }) => [
                 styles.backButton,
                 { opacity: pressed ? 0.6 : 1 }
@@ -640,8 +640,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                 ]}
               >
                 <LinearGradient
-                  colors={selectedTierId === tier.id 
-                    ? [tier.gradient, tier.color] 
+                  colors={selectedTierId === tier.id
+                    ? [tier.gradient, tier.color]
                     : (isDark ? ['#374151', '#1F2937'] : ['#FFFFFF', '#F9FAFB'])}
                   style={[
                     styles.tierCard,
@@ -657,17 +657,17 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                     </View>
                   )}
                   <View style={[
-                    styles.tierIconContainer, 
+                    styles.tierIconContainer,
                     { backgroundColor: selectedTierId === tier.id ? 'rgba(255,255,255,0.2)' : (isDark ? '#4B5563' : '#F3F4F6') }
                   ]}>
-                    <Ionicons 
-                      name={tier.icon as any} 
-                      size={26} 
-                      color={selectedTierId === tier.id ? '#FFFFFF' : tier.color} 
+                    <Ionicons
+                      name={tier.icon as any}
+                      size={26}
+                      color={selectedTierId === tier.id ? '#FFFFFF' : tier.color}
                     />
                   </View>
                   <Text style={[
-                    styles.tierNameText, 
+                    styles.tierNameText,
                     { color: selectedTierId === tier.id ? '#FFFFFF' : (isDark ? '#E5E7EB' : '#1E3A8A') }
                   ]} numberOfLines={1}>
                     {tier.name}
@@ -697,7 +697,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
               </Pressable>
             ))}
           </View>
- 
+
           {/* Promo Code Section */}
           <View style={[styles.promoSection, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
             {/* Available Promos Horizontal Scroll */}
@@ -708,7 +708,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.availableOffersScroll}>
                   {availablePromos.data.map((promo: any) => (
-                    <PromoCoupon 
+                    <PromoCoupon
                       key={promo.id}
                       promo={promo}
                       tierColor={currentTier?.color || '#2563EB'}
@@ -760,8 +760,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
             {/* Wallet Rewards Section */}
             {Number(user?.credit?.balance || 0) > 0 && (
               <View style={[
-                styles.rewardSection, 
-                { 
+                styles.rewardSection,
+                {
                   backgroundColor: isDark ? '#0F172A' : '#F0F9FF',
                   borderColor: useRewardBalance ? '#0EA5E9' : (isDark ? '#1E293B' : '#E0F2FE')
                 }
@@ -778,8 +778,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                   </View>
                   <Pressable
                     onPress={() => {
-                       triggerHaptic(HapticFeedbackTypes.impactLight);
-                       setUseRewardBalance(!useRewardBalance);
+                      triggerHaptic(HapticFeedbackTypes.impactLight);
+                      setUseRewardBalance(!useRewardBalance);
                     }}
                     style={[
                       styles.rewardApplyBtn,
@@ -805,8 +805,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
 
           {/* Selected Plan Details */}
           <Animated.View style={[
-            styles.mainPlanCard, 
-            { 
+            styles.mainPlanCard,
+            {
               transform: [{ scale: scaleAnim }],
               backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
               borderRadius: 16, // Softer radius for the shadow look
@@ -818,29 +818,27 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                 <Text style={[styles.mainPlanName, { color: currentTier?.color || '#2563EB' }]}>{(currentTier?.name || '').toUpperCase()}</Text>
               </View>
 
-              <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                {currentTier?.savings && (
-                  <View style={[styles.saveBadge, { backgroundColor: isDark ? '#1E3A8A' : '#EBF2FF', marginBottom: 10 }]}>
-                     <Text style={[styles.saveBadgeText, { color: isDark ? '#60A5FA' : '#2563EB' }]}>
-                       SAVE {currentTier?.savings}%
-                     </Text>
-                  </View>
-                )}
-                
-                <View style={styles.mainPriceRow}>
-                  { (discountAmount > 0 || useRewardBalance) ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                      <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
-                        ₹{Math.max(0, currentPrice - discountAmount - (useRewardBalance ? Number(user?.credit?.balance || 0) : 0))}
-                      </Text>
-                      <Text style={[styles.originalPriceText, { color: isDark ? '#6B7280' : '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8, fontSize: 16 }]}>₹{currentPrice}</Text>
-                    </View>
-                  ) : (
-                    <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>₹{currentPrice}</Text>
-                  )}
-                  <Text style={styles.mainDurationText}>/ {getFriendlyDuration(selectedDuration)}</Text>
+              {currentTier?.savings && (
+                <View style={[styles.saveBadge, { backgroundColor: isDark ? '#1E3A8A' : '#EBF2FF' }]}>
+                  <Text style={[styles.saveBadgeText, { color: isDark ? '#60A5FA' : '#2563EB' }]}>
+                    SAVE {currentTier?.savings}%
+                  </Text>
                 </View>
-              </View>
+              )}
+            </View>
+
+            <View style={styles.mainPriceRow}>
+              {(discountAmount > 0 || useRewardBalance) ? (
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
+                    ₹{Math.max(0, currentPrice - discountAmount - (useRewardBalance ? Number(user?.credit?.balance || 0) : 0))}
+                  </Text>
+                  <Text style={[styles.originalPriceText, { color: isDark ? '#6B7280' : '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8, fontSize: 16 }]}>₹{currentPrice}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>₹{currentPrice}</Text>
+              )}
+              <Text style={styles.mainDurationText}>/ {getFriendlyDuration(selectedDuration)}</Text>
             </View>
 
             {isActivePlan && (
@@ -858,20 +856,30 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
               <Text style={styles.featuresTitle}>WHAT'S INCLUDED</Text>
               <View style={styles.featuresGrid}>
                 {(currentTier?.features || []).map((feature: any, idx) => (
-                  <View key={idx} style={styles.featureGridItem}>
+                  <View
+                    key={idx}
+                    style={[
+                      styles.featureGridItem,
+                      { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }
+                    ]}
+                  >
                     <View style={[
-                      styles.checkCircle, 
-                      { backgroundColor: feature.isBlocked ? (isDark ? '#374151' : '#F3F4F6') : (currentTier?.color || '#2563EB'), width: 20, height: 20, borderRadius: 10, marginRight: 8 }
+                      styles.checkCircle,
+                      {
+                        backgroundColor: feature.isBlocked
+                          ? (isDark ? '#374151' : '#F3F4F6')
+                          : (currentTier?.color || '#2563EB'),
+                      }
                     ]}>
                       <Ionicons
                         name={feature.icon}
-                        size={10}
+                        size={12}
                         color={feature.isBlocked ? "#9CA3AF" : "white"}
                       />
                     </View>
                     <Text style={[
                       styles.featureLineText,
-                      { color: isDark ? '#D1D5DB' : '#475569', fontSize: 13 },
+                      { color: isDark ? '#E5E7EB' : '#334155' },
                       feature.isBlocked && { textDecorationLine: 'line-through', color: '#9CA3AF' }
                     ]} numberOfLines={1}>
                       {getFeatureLabel(feature.key)}
@@ -1005,13 +1013,13 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   tierCard: {
-    width: 110,
+    width: 90,
     borderRadius: 22,
-    padding: 4,
+    padding: 2,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-   
+
   },
   selectedTierCard: {
     borderColor: '#FFFFFF',
@@ -1059,7 +1067,7 @@ const styles = StyleSheet.create({
   },
   tierPriceText: { fontSize: 18, fontWeight: '900' },
   tierDurationText: { fontSize: 11, fontWeight: '600' },
- 
+
   durationTabs: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
@@ -1086,7 +1094,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   mainPlanCard: {
-    padding: 24,
+    padding: 16,
     marginHorizontal: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -1099,20 +1107,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 20,
-    marginTop: 20,
+    paddingHorizontal: 4,
   },
   planTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    marginBottom: 10,
   },
-  mainPlanName: { fontSize: 12, fontWeight: '900', letterSpacing: 1.5 },
-  mainPriceRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: -10 },
+  mainPlanName: { fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  mainPriceRow: { 
+    flexDirection: 'row', 
+    alignItems: 'baseline', 
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
   mainPriceText: { fontSize: 48, fontWeight: '900', letterSpacing: -1 },
   mainDurationText: { fontSize: 20, color: '#4B5563', marginLeft: 6, fontWeight: '800', textTransform: 'capitalize' },
   activePlanBadge: {
@@ -1145,22 +1155,24 @@ const styles = StyleSheet.create({
   },
   featuresSection: { marginTop: 10 },
   featuresTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#9CA3AF',
-    letterSpacing: 1,
-    marginBottom: 15,
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1.5,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   featuresGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: 8,
   },
   featureGridItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: '48%',
-    marginBottom: 14,
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
   },
   checkCircle: {
     width: 24,
@@ -1170,7 +1182,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  featureLineText: { fontSize: 15, color: '#1F2937', fontWeight: '500' },
+  featureLineText: { fontSize: 14, color: '#1F2937', fontWeight: '600' },
   bottomSection: {
     marginTop: 30,
     paddingBottom: 40,
@@ -1201,9 +1213,9 @@ const styles = StyleSheet.create({
   refundLink: { marginTop: 10 },
   refundText: { color: '#9CA3AF', fontSize: 12, textDecorationLine: 'underline' },
   promoSection: {
-    marginHorizontal: 20,
-    padding: 16,
-    borderRadius: 20,
+    marginHorizontal: 16,
+    padding: 10,
+    borderRadius: 10,
     marginBottom: 20,
   },
   promoInputRow: {
@@ -1215,7 +1227,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderRadius: 8,
+    borderRadius: 18,
     paddingHorizontal: 12,
     height: 50,
     marginRight: 12,
@@ -1229,7 +1241,7 @@ const styles = StyleSheet.create({
   applyPromoButton: {
     paddingHorizontal: 18,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
     minWidth: 100,
@@ -1257,13 +1269,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   scrollContent: { paddingBottom: 20 },
-  
+
   // Coupon Styles
   couponOuterContainer: {
-    marginRight: 14,
-    paddingTop: 6,
+    marginRight: 12,
+    paddingTop: 4,
     position: 'relative',
-    width: 340,
+    width: 300,
   },
   grabDealBadge: {
     position: 'absolute',

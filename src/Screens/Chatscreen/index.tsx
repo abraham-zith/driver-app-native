@@ -26,6 +26,8 @@ import { useHaptic } from '../../hooks/useHaptic';
 import { HapticFeedbackTypes } from 'react-native-haptic-feedback';
 import moment from 'moment';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useAlert } from '../../context/AlertContext';
+import { checkCameraPermission, checkPhotoLibraryPermission, goToSettings } from '../../utils/permissionUtils';
 
 
 export const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -48,6 +50,7 @@ const ChatScreen = ({ route, navigation }: any) => {
     const { t } = useTranslation();
     const { theme, isDark } = useAppTheme();
     const { triggerHaptic } = useHaptic();
+    const { showAlert } = useAlert();
     const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const anim1 = useRef(new Animated.Value(0.3)).current;
     const anim2 = useRef(new Animated.Value(0.3)).current;
@@ -154,13 +157,27 @@ const ChatScreen = ({ route, navigation }: any) => {
 
     const handleCameraLaunch = async () => {
         setShowMenu(false); // Close menu first
+
+        // --- PERMISSION CHECK ---
+        const hasPermission = await checkCameraPermission();
+        if (!hasPermission) {
+            showAlert({
+                title: t('camera_permission') || 'Camera Required',
+                message: t('camera_permission_msg') || 'Please enable camera access to send photos.',
+                confirmText: t('go_to_settings') || 'Settings',
+                onConfirm: () => goToSettings(),
+                cancelText: t('cancel') || 'Cancel',
+            });
+            return;
+        }
+
         try {
             const image = await ImagePicker.openCamera({
                 width: 1000,
                 height: 1000,
                 cropping: true,
                 compressImageQuality: 0.8,
-            });
+            }) as any;
             handleImageSelection(image);
         } catch (error: any) {
             // Handle "User cancelled" error gracefully
@@ -172,6 +189,20 @@ const ChatScreen = ({ route, navigation }: any) => {
 
     const handleGalleryLaunch = async () => {
         setShowMenu(false); // Close menu first
+
+        // --- PERMISSION CHECK ---
+        const hasPermission = await checkPhotoLibraryPermission();
+        if (!hasPermission) {
+            showAlert({
+                title: t('gallery_permission') || 'Gallery Required',
+                message: t('gallery_permission_msg') || 'Please enable gallery access to send photos.',
+                confirmText: t('go_to_settings') || 'Settings',
+                onConfirm: () => goToSettings(),
+                cancelText: t('cancel') || 'Cancel',
+            });
+            return;
+        }
+
         try {
             const image = await ImagePicker.openPicker({
                 width: 1000,
@@ -179,7 +210,7 @@ const ChatScreen = ({ route, navigation }: any) => {
                 cropping: true,
                 compressImageQuality: 0.8,
                 mediaType: 'photo',
-            });
+            }) as any;
             handleImageSelection(image);
         } catch (error: any) {
             if (error.message !== 'User cancelled image selection') {

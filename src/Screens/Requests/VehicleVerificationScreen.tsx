@@ -44,6 +44,7 @@ import { documentApi } from '../../api/documentApi';
 import { clearAcceptedRide } from '../../redux/rideSlice';
 import socketService from '../../service/socketService';
 import audioService from '../../utils/audioService';
+import { checkCameraPermission, goToSettings } from '../../utils/permissionUtils';
 
 // const { width } = Dimensions.get('window');
 
@@ -82,8 +83,10 @@ const VehicleVerificationScreen = ({ route }: any) => {
   // 🛡️ Guard: Exit screen if ride is cleared from Redux (e.g. by global cancellation)
   useEffect(() => {
     if (!rideFromStore) {
-      console.log('[VehicleVerification] Active ride cleared from Redux, exiting...');
+      console.log('[VehicleVerification] ❌ Active ride cleared from Redux, exiting...');
       navigation.dispatch(StackActions.replace('DashboardScreen'));
+    } else {
+      console.log('[VehicleVerification] ✅ Active ride present in Redux. Status:', rideFromStore?.trip_status);
     }
   }, [rideFromStore, navigation]);
 
@@ -288,13 +291,27 @@ const VehicleVerificationScreen = ({ route }: any) => {
       });
       return;
     }
+
+    // --- PERMISSION CHECK ---
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) {
+      showAlert({
+        title: t('camera_permission') || 'Camera Required',
+        message: t('camera_permission_msg') || 'Please enable camera access to capture your selfie.',
+        confirmText: t('go_to_settings') || 'Settings',
+        onConfirm: () => goToSettings(),
+        cancelText: t('cancel') || 'Cancel',
+      });
+      return;
+    }
+
     try {
       const image = await ImagePicker.openCamera({
         width: 1200,
         height: 1200,
         cropping: true,
         useFrontCamera: true,
-      });
+      }) as any;
 
       setSelfieTaken(true);
       setSelfieUri(image.path);
@@ -315,12 +332,26 @@ const VehicleVerificationScreen = ({ route }: any) => {
       });
       return;
     }
+
+    // --- PERMISSION CHECK ---
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) {
+      showAlert({
+        title: t('camera_permission') || 'Camera Required',
+        message: t('camera_permission_msg') || 'Please enable camera access to capture vehicle photos.',
+        confirmText: t('go_to_settings') || 'Settings',
+        onConfirm: () => goToSettings(),
+        cancelText: t('cancel') || 'Cancel',
+      });
+      return;
+    }
+
     try {
       const image = await ImagePicker.openCamera({
         width: 1200,
         height: 1200,
         cropping: true,
-      });
+      }) as any;
 
       setVehiclePhotos(prev => ({ ...prev, [key]: true }));
       setVehicleUris(prev => ({ ...prev, [key]: image.path }));

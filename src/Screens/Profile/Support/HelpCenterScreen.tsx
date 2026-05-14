@@ -75,11 +75,12 @@ const FAQ_DATA: FAQ[] = [
 const AccordionItem = ({ item, isExpanded, onPress }: { item: FAQ, isExpanded: boolean, onPress: () => void }) => {
     const { theme, isDark } = useAppTheme();
 
+    const accordionMarginTop = vs(12);
     const animatedStyle = useAnimatedStyle(() => {
         return {
             height: withTiming(isExpanded ? 'auto' : 0, { duration: 300 }),
             opacity: withTiming(isExpanded ? 1 : 0, { duration: 250 }),
-            marginTop: withTiming(isExpanded ? vs(12) : 0, { duration: 300 }),
+            marginTop: withTiming(isExpanded ? accordionMarginTop : 0, { duration: 300 }),
         };
     });
 

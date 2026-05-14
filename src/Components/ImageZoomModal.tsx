@@ -1,129 +1,187 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-    Modal,
-    View,
-    Image,
-    StyleSheet,
-    Pressable,
-    Dimensions,
-    StatusBar,
+  Modal,
+  View,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  SafeAreaView,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    withTiming,
-    runOnJS,
-} from 'react-native-reanimated';
-import { BlurView } from '@react-native-community/blur';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Text } from './index';
+
+interface ImageZoomModalProps {
+  visible: boolean;
+  onClose: () => void;
+  imageUris: string[];
+  title?: string;
+}
 
 const { width, height } = Dimensions.get('window');
 
-interface ImageZoomModalProps {
-    isVisible: boolean;
-    imageUri?: string;
-    onClose: () => void;
-}
+const ImageNode = ({ uri }: { uri: string }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
-    isVisible,
-    imageUri,
-    onClose,
-}) => {
-    const scale = useSharedValue(0.8);
-    const opacity = useSharedValue(0);
-
-    useEffect(() => {
-        if (isVisible) {
-            scale.value = withSpring(1, { damping: 15, stiffness: 100 });
-            opacity.value = withTiming(1, { duration: 300 });
-        } else {
-            scale.value = withTiming(0.8, { duration: 200 });
-            opacity.value = withTiming(0, { duration: 200 });
-        }
-    }, [isVisible]);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-        opacity: opacity.value,
-    }));
-
-    const handleClose = () => {
-        scale.value = withTiming(0.8, { duration: 200 });
-        opacity.value = withTiming(0, { duration: 200 }, () => {
-            runOnJS(onClose)();
-        });
-    };
-
-    if (!isVisible && opacity.value === 0) {
-        return null;
-    }
-
-    const sourceUri = imageUri
-        ? (imageUri.startsWith('http') || imageUri.startsWith('file://') || imageUri.startsWith('data:')
-            ? imageUri
-            : 'file://' + imageUri)
-        : null;
-
-    return (
-        <Modal
-            visible={isVisible}
-            transparent={true}
-            animationType="none"
-            onRequestClose={handleClose}
-        >
-            <View style={styles.container}>
-                <StatusBar barStyle="light-content" backgroundColor="black" />
-                <BlurView
-                    style={StyleSheet.absoluteFill}
-                    blurType="dark"
-                    blurAmount={10}
-                    reducedTransparencyFallbackColor="black"
-                />
-                <Pressable style={styles.backdrop} onPress={handleClose}>
-                    <Animated.View style={[styles.imageContainer, animatedStyle]}>
-                        <Pressable onPress={() => { }}>
-                            {sourceUri && (
-                                <Image
-                                    source={{ uri: sourceUri }}
-                                    style={styles.image}
-                                    resizeMode="contain"
-                                />
-                            )}
-                        </Pressable>
-                    </Animated.View>
-                </Pressable>
-            </View>
-        </Modal>
-    );
+  return (
+    <View style={styles.imageContainer}>
+      {loading && !error && (
+        <ActivityIndicator size="large" color="#2563EB" style={StyleSheet.absoluteFill} />
+      )}
+      {error ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="image-outline" size={64} color="rgba(255,255,255,0.3)" />
+          <Text style={styles.errorText}>Unable to load image</Text>
+        </View>
+      ) : (
+        <Image
+          source={{ uri }}
+          style={styles.image}
+          resizeMode="contain"
+          onLoadStart={() => { setLoading(true); setError(false); }}
+          onLoadEnd={() => setLoading(false)}
+          onError={() => { setLoading(false); setError(true); }}
+        />
+      )}
+    </View>
+  );
 };
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    },
-    backdrop: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    imageContainer: {
-        width: width * 0.9,
-        height: height * 0.7,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 20,
-    },
-    image: {
-        width: width * 0.9,
-        height: height * 0.7,
-        borderRadius: 20,
-    },
-});
+const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
+  visible,
+  onClose,
+  imageUris,
+  title,
+}) => {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (!imageUris || imageUris.length === 0) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.overlay}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{title || 'Document Preview'}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={{ flex: 1 }}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => {
+                const index = Math.round(e.nativeEvent.contentOffset.x / width);
+                setActiveIndex(index);
+              }}
+            >
+              {imageUris.map((uri, idx) => (
+                <ImageNode key={`${uri}-${idx}`} uri={uri} />
+              ))}
+            </ScrollView>
+
+            {/* Pagination Dots */}
+            {imageUris.length > 1 && (
+              <View style={styles.pagination}>
+                {imageUris.map((_, i) => (
+                  <View 
+                    key={i} 
+                    style={[
+                      styles.dot, 
+                      activeIndex === i ? styles.activeDot : styles.inactiveDot
+                    ]} 
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Ensure all details are clearly visible and not blurry.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+};
 
 export default ImageZoomModal;
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  imageContainer: {
+    width: width,
+    height: height * 0.7,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  image: {
+    width: width,
+    height: height * 0.7,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  errorText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 16,
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  activeDot: {
+    backgroundColor: '#3B82F6',
+    width: 12,
+  },
+  inactiveDot: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  footer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  footerText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+});

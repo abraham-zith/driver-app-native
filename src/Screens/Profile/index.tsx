@@ -18,7 +18,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { setBannerIndex } from '../../redux/userSlice';
 import AppStatusBar from '../../Components/AppStatusBar';
 import { useAppTheme } from '../../context/ThemeContext';
-import { useLazyGetDriverByIdQuery } from '../../service/driverApi';
+import { useLazyGetDriverByIdQuery, useGetRideActivityQuery } from '../../service/driverApi';
+import { calculateAverageRating } from '../../utils/ratingUtils';
 import {
   HelpCenter_Nav,
   ContactSupport_Nav,
@@ -90,6 +91,40 @@ const ProfileScreen = ({ navigation }: any) => {
     const years = diffDays / 365;
     return years < 0.1 ? '0.1' : years.toFixed(1);
   }, [user?.created_at, user?.createdAt]);
+
+  const { data: allHistoryResult } = useGetRideActivityQuery(
+    { driverId: user?.driverId || '', limit: 1000 },
+    { skip: !user?.driverId }
+  );
+
+  const extractArray = useCallback((result: any) => {
+    if (!result) return [];
+    if (Array.isArray(result)) return result;
+    if (result.data && Array.isArray(result.data)) return result.data;
+    if (result.trips && Array.isArray(result.trips)) return result.trips;
+    return [];
+  }, []);
+
+  const displayRating = useMemo(() => {
+    if (allHistoryResult?.data) {
+      const rides = extractArray(allHistoryResult.data);
+      const newRating = calculateAverageRating(rides);
+      if (newRating !== null) return newRating.toFixed(1);
+    }
+    return user?.rating ? Number(user.rating).toFixed(1) : '0.0';
+  }, [allHistoryResult?.data, user?.rating, extractArray]);
+
+  const displayTotalTrips = useMemo(() => {
+    if (allHistoryResult?.data) {
+      const rides = extractArray(allHistoryResult.data);
+      const completedRides = rides.filter((ride: any) => 
+        ride.status?.toUpperCase() === 'COMPLETED' || 
+        ride.trip_status?.toUpperCase() === 'COMPLETED'
+      );
+      if (completedRides.length > 0) return completedRides.length;
+    }
+    return user?.total_trips || 0;
+  }, [allHistoryResult?.data, user?.total_trips, extractArray]);
 
 
   return (
@@ -166,7 +201,7 @@ const ProfileScreen = ({ navigation }: any) => {
           <StatCard
             icon="star"
             iconColor="#F59E0B"
-            value={user?.rating ? user.rating.toFixed(1) : '0.0'}
+            value={displayRating}
             label={t('rating')}
             isDark={isDark}
             theme={theme}
@@ -174,7 +209,7 @@ const ProfileScreen = ({ navigation }: any) => {
           <StatCard
             icon="car-outline"
             iconColor="#2563EB"
-            value={user?.total_trips || 0}
+            value={displayTotalTrips}
             label={t('rides_label')}
             isDark={isDark}
             theme={theme}
@@ -364,8 +399,8 @@ const ProfileScreen = ({ navigation }: any) => {
       </Modal>
 
       <ImageZoomModal
-        isVisible={showProfileImage}
-        imageUri={stableImgUrl}
+        visible={showProfileImage}
+        imageUris={stableImgUrl ? [stableImgUrl] : []}
         onClose={() => setShowProfileImage(false)}
       />
 

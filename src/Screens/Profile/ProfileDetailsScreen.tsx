@@ -22,6 +22,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import AppStatusBar from '../../Components/AppStatusBar';
 import { ms, vs } from '../../lib/scale';
 import ImageZoomModal from '../../Components/ImageZoomModal';
+import { resolveImageUrl } from '../../utils/imageUtils';
 
 const CardSection = ({ title, icon, children, s, headerIconColor }: any) => (
   <View style={s.cardSection}>
@@ -479,7 +480,7 @@ export default function ProfileDetailsScreen({ navigation }: any) {
                   if (stableImgUrl && !imgError) {
                     return (
                       <Image
-                        source={{ uri: stableImgUrl.startsWith('http') ? stableImgUrl : 'file://' + stableImgUrl }}
+                        source={{ uri: resolveImageUrl(stableImgUrl) }}
                         style={{ width: 80, height: 80, borderRadius: 40 }}
                         resizeMode="cover"
                         fadeDuration={0}
@@ -530,7 +531,10 @@ export default function ProfileDetailsScreen({ navigation }: any) {
                 </Text>
               </Pressable>
 
-              <Pressable style={[s.documentsButton, { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' }]}>
+              <Pressable 
+                onPress={() => navigation.navigate('ProfileDocumentsScreen')}
+                style={[s.documentsButton, { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' }]}
+              >
                 <Ionicons name="document-text-outline" size={18} color="#FFFFFF" />
                 <Text style={[s.documentsButtonText, { color: '#FFFFFF' }]}>{t('documents')}</Text>
               </Pressable>
@@ -672,8 +676,8 @@ export default function ProfileDetailsScreen({ navigation }: any) {
       </Modal>
 
       <ImageZoomModal
-        isVisible={showProfileImage}
-        imageUri={stableImgUrl}
+        visible={showProfileImage}
+        imageUris={stableImgUrl ? [stableImgUrl] : []}
         onClose={() => setShowProfileImage(false)}
       />
 

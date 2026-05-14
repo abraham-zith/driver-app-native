@@ -261,7 +261,7 @@ const RideAlertCard: React.FC<Props> = ({ item, onAccept, onReject }) => {
               </RNAnimated.View>
             </View>
 
-            <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: s(15) }}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: s(15) }}>
               <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
                 <Text style={styles.price}>{item.price}</Text>
                 {/* Surge removed for now as it's not in backend data yet */}
@@ -378,7 +378,7 @@ export default RideAlertCard;
 
 /* ================= STYLES ================= */
 const styles = StyleSheet.create({
-  cardWrapper: { marginHorizontal: s(16) },
+  cardWrapper: { marginHorizontal: s(8) },
 
   card: {
     backgroundColor: '#fff',
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   },
 
   cardHeaderGradient: {
-    paddingHorizontal: s(24),
+    paddingHorizontal: s(26),
     paddingVertical: vs(24),
   },
 
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   },
 
   cardHeaderText: {
-    fontSize: getLanguageScaledSize(12),
+    fontSize: getLanguageScaledSize(14),
     color: 'rgba(255,255,255,0.7)',
     fontWeight: '700',
     textTransform: 'uppercase',

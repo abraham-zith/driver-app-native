@@ -6,11 +6,13 @@ import { Text } from '../../../Components';
 import { hS as s, vS as vs, ms } from '../../../lib/scale';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { getLanguageScaledSize } from '../../../utils/languageSizings';
+import { resolveImageUrl } from '../../../utils/imageUtils';
 
 interface Props {
     isOnline: boolean;
     driverName: string;
     rating?: number;
+    totalTrips?: number;
     profileImage?: string;
     onSettingsPress: () => void;
     onProfilePress: () => void;
@@ -21,6 +23,7 @@ const DashboardProfileHeader: React.FC<Props> = ({
     isOnline,
     driverName,
     rating = 0,
+    totalTrips = 0,
     profileImage,
     onSettingsPress,
     onProfilePress,
@@ -112,7 +115,7 @@ const DashboardProfileHeader: React.FC<Props> = ({
                         </Text>
                         {profileImage && profileImage.trim() !== '' && !imgError && (
                             <Image
-                                source={{ uri: profileImage.startsWith('http') ? profileImage : 'file://' + profileImage }}
+                                source={{ uri: resolveImageUrl(profileImage) }}
                                 style={[styles.avatarImage, { position: 'absolute', top: 0, left: 0 }]}
                                 onError={() => setImgError(true)}
                             />
@@ -127,7 +130,10 @@ const DashboardProfileHeader: React.FC<Props> = ({
                     </Text>
                     <View style={styles.metaRow}>
                         <Ionicons name="star" size={ms(16)} color="#F59E0B" />
-                        <Text style={[styles.rating, { color: isDark ? '#FFFFFF' : '#1E293B' }]}>{rating ? rating.toFixed(1) : '0.0'}</Text>
+                        <Text style={[styles.rating, { color: isDark ? '#FFFFFF' : '#1E293B' }]}>
+                            {Number(rating || 0).toFixed(1)}
+                            <Text style={[styles.tripsCount, { color: isDark ? '#94A3B8' : '#64748B' }]}> ({totalTrips})</Text>
+                        </Text>
 
                         <View style={[styles.badge, { marginLeft: s(10), backgroundColor: currentTier.bg }]}>
                             <Ionicons name={currentTier.icon} size={ms(12)} color={currentTier.color} style={{ marginRight: s(4) }} />
@@ -236,6 +242,11 @@ const styles = StyleSheet.create({
         fontSize: getLanguageScaledSize(15),
         fontWeight: '700',
         color: '#1E293B',
+    },
+    tripsCount: {
+        fontSize: getLanguageScaledSize(13),
+        fontWeight: '400',
+        color: '#64748B',
     },
     dot: {
         marginHorizontal: s(6),

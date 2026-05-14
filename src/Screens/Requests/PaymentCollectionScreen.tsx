@@ -39,6 +39,7 @@ import { useCompleteTripMutation } from '../../service/driverApi';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../redux/store';
 import { clearAcceptedRide } from '../../redux/rideSlice';
+import { checkPhotoLibraryPermission, goToSettings } from '../../utils/permissionUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -147,13 +148,25 @@ const PaymentCollectionScreen = ({ route, navigation }: any) => {
         return `${hrs}h ${m > 0 ? `${m}m` : ''}`;
     };
 
-    const handleOpenGallery = () => {
+    const handleOpenGallery = async () => {
+        const hasPermission = await checkPhotoLibraryPermission();
+        if (!hasPermission) {
+            showAlert({
+                title: t('gallery_permission') || 'Gallery Required',
+                message: t('gallery_permission_msg') || 'Please enable gallery access to pick a QR code.',
+                confirmText: t('go_to_settings') || 'Settings',
+                onConfirm: () => goToSettings(),
+                cancelText: t('cancel') || 'Cancel',
+            });
+            return;
+        }
+
         ImagePicker.openPicker({
             width: 400,
             height: 400,
             cropping: false,
             includeBase64: true,
-        }).then(image => {
+        }).then((image: any) => {
             console.log('[PaymentCollection] Image picked from gallery:', image.path);
         }).catch(err => {
             if (err.message !== 'User cancelled image selection') {

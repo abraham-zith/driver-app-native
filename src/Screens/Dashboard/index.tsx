@@ -398,8 +398,8 @@ const DriverDashboard = () => {
             data: { rating: newRating }
           }).unwrap()
             .then(() => {
-              // Optionally dispatch update to Redux if invalidatesTags doesn't do it automatically for current user state
-              dispatch(setUser({ ...user, rating: newRating }));
+              // Only update the rating in Redux to avoid stale overwrites
+              dispatch(setUser({ rating: newRating }));
             })
             .catch(err => {
               console.error('[RatingCalc] Failed to update driver rating:', err);
@@ -472,6 +472,27 @@ const DriverDashboard = () => {
     setRefreshing(false);
   }, [refetchSub, refetchEarnings, refetchWallet, refetchRecentActivity, refetchTodayRides, refetchPerformance, refetchTodayOverview, refetchScheduled]);
 
+  const displayRating = useMemo(() => {
+    if (allHistoryResult?.data) {
+      const rides = extractArray(allHistoryResult.data);
+      const newRating = calculateAverageRating(rides);
+      if (newRating !== null) return newRating;
+    }
+    return user?.rating || 0;
+  }, [allHistoryResult?.data, user?.rating, extractArray]);
+
+  const displayTotalTrips = useMemo(() => {
+    if (allHistoryResult?.data) {
+      const rides = extractArray(allHistoryResult.data);
+      const completedRides = rides.filter((ride: any) => 
+        ride.status?.toUpperCase() === 'COMPLETED' || 
+        ride.trip_status?.toUpperCase() === 'COMPLETED'
+      );
+      if (completedRides.length > 0) return completedRides.length;
+    }
+    return user?.total_trips || 0;
+  }, [allHistoryResult?.data, user?.total_trips, extractArray]);
+
   const route = [] as { latitude: number; longitude: number }[];
 
   const driverName = user?.full_name || t('driver');
@@ -486,7 +507,8 @@ const DriverDashboard = () => {
         <DashboardProfileHeader
           isOnline={isOnline}
           driverName={driverName}
-          rating={user?.rating}
+          rating={displayRating}
+          totalTrips={displayTotalTrips}
           profileImage={user?.profile_picture}
           onSettingsPress={() => setSettingsVisible(true)}
           onProfilePress={() => navigation.navigate('Profile')}
@@ -961,7 +983,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingVertical: vs(50),
-    paddingHorizontal: s(16),
+    paddingHorizontal: s(8),
   },
   swipeBox: {
     position: 'absolute',

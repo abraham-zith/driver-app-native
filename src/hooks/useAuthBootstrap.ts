@@ -217,6 +217,8 @@ export const useAuthBootstrap = () => {
             full_name: raw.full_name || raw.fullName || `${raw.first_name || ''} ${raw.last_name || ''}`.trim() || '',
             onboarding_status: raw.onboarding_status || raw.onboardingStatus || 'PHONE_VERIFIED',
             phone_number: raw.phone_number || raw.phoneNumber || '',
+            rating: raw.rating || raw.driver_rating || 0,
+            total_trips: raw.total_trips || raw.trips_count || 0,
         };
 
         console.log(`[AuthBootstrap] Normalized profile for ${normalized.driverId}:`, {

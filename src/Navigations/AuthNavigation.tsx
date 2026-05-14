@@ -8,6 +8,7 @@ import {
   AddressDetails_Nav,
   DocumentScreen_Nav,
   DocumentUploadScreen_Nav,
+  SmartSelfieScreen_Nav,
 } from './navigations';
 
 import WelcomeScreen from '../Screens/Auth/WelcomeScreen';
@@ -16,6 +17,7 @@ import PersonalDetails from '../Screens/Auth/PersonalDetails';
 import AddressDetails from '../Screens/Auth/AddressDetails';
 import DocumentScreen from '../Screens/Auth/DocumentScreen';
 import DocumentUploadScreen from '../Screens/Auth/DocumentUploadScreen';
+import SmartSelfieScreen from '../Screens/Auth/SmartSelfieScreen';
 import { LeftArrow } from '../assets/svg';
 
 const Stack = createStackNavigator();
@@ -87,6 +89,13 @@ const AuthNavigation = () => {
         name={DocumentUploadScreen_Nav}
         component={DocumentUploadScreen}
         options={headerWithBack}
+      />
+
+      {/* SMART SELFIE SCREEN */}
+      <Stack.Screen
+        name={SmartSelfieScreen_Nav}
+        component={SmartSelfieScreen}
+        options={{ headerShown: false, presentation: 'modal' }}
       />
 
 
