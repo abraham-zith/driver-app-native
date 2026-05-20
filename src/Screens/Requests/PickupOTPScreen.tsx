@@ -207,7 +207,7 @@ const PickupOTPModal = ({ isVisible, onClose, ride: rideFromProps }: PickupOTPMo
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useAppTheme();
-  const { showAlert } = useAlert();
+  const { showAlert, hideAlert } = useAlert();
   const { triggerHaptic } = useHaptic();
   const dispatch = useDispatch();
 
@@ -242,11 +242,21 @@ const PickupOTPModal = ({ isVisible, onClose, ride: rideFromProps }: PickupOTPMo
   const [cancelTripApi, { isLoading: isCancelling }] = useCancelTripMutation();
 
   const handleCancelTrip = async (reason: string) => {
+    const isStandard = [
+      'PERSONAL_EMERGENCY',
+      'VEHICLE_PROBLEM',
+      'PICKUP_TOO_FAR',
+      'RIDER_NOT_RESPONDING',
+      'RIDER_ASKED_TO_CANCEL',
+      'TECHNICAL_ISSUE'
+    ].includes(reason);
+
     try {
       await cancelTripApi({
         tripId: ride.trip_id || ride.id,
-        cancel_reason: reason,
-        cancel_by: 'DRIVER'
+        cancel_reason: isStandard ? reason : 'OTHER',
+        cancel_by: 'DRIVER',
+        notes: isStandard ? undefined : reason
       }).unwrap();
 
       setShowCancelModal(false);
@@ -255,12 +265,14 @@ const PickupOTPModal = ({ isVisible, onClose, ride: rideFromProps }: PickupOTPMo
         message: 'The trip has been cancelled successfully.',
         singleButton: true,
         icon: 'checkmark-circle-outline',
-        onConfirm: () => {
-          onClose();
-          dispatch(clearAcceptedRide());
-          navigation.replace('DashboardScreen');
-        }
       });
+
+      setTimeout(() => {
+        hideAlert();
+        onClose();
+        dispatch(clearAcceptedRide());
+        navigation.replace('DashboardScreen');
+      }, 1500);
     } catch (error: any) {
       console.error('Cancellation failed:', error);
 

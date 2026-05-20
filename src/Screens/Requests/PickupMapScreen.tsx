@@ -52,7 +52,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 
 const PickupMapScreen = ({ route }: any) => {
   // 1. Core Hooks (Always called, always in same order)
-  const { showAlert } = useAlert();
+  const { showAlert, hideAlert } = useAlert();
   const { t } = useTranslation();
   const navigation = useNavigation<StackNavigationProp<any>>();
   const theme = useAppTheme().theme;
@@ -666,11 +666,21 @@ const PickupMapScreen = ({ route }: any) => {
 
 
   const handleCancelTrip = async (reason: string) => {
+    const isStandard = [
+      'PERSONAL_EMERGENCY',
+      'VEHICLE_PROBLEM',
+      'PICKUP_TOO_FAR',
+      'RIDER_NOT_RESPONDING',
+      'RIDER_ASKED_TO_CANCEL',
+      'TECHNICAL_ISSUE'
+    ].includes(reason);
+
     try {
       await cancelTripApi({
         tripId: ride.trip_id || ride.id,
-        cancel_reason: reason,
-        cancel_by: 'DRIVER'
+        cancel_reason: isStandard ? reason : 'OTHER',
+        cancel_by: 'DRIVER',
+        notes: isStandard ? undefined : reason
       }).unwrap();
 
       setShowCancelModal(false);
@@ -679,11 +689,13 @@ const PickupMapScreen = ({ route }: any) => {
         message: t('trip_cancelled_msg') || 'The trip has been cancelled successfully.',
         singleButton: true,
         icon: 'close-circle-outline',
-        onConfirm: () => {
-          dispatch(clearAcceptedRide());
-          navigation.dispatch(StackActions.replace('DashboardScreen'));
-        }
       });
+
+      setTimeout(() => {
+        hideAlert();
+        dispatch(clearAcceptedRide());
+        navigation.dispatch(StackActions.replace('DashboardScreen'));
+      }, 1500);
     } catch (error: any) {
       console.error('Cancellation failed:', error);
 

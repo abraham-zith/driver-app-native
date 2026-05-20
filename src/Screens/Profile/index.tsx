@@ -28,6 +28,7 @@ import {
   ReferEarn_Nav,
 } from '../../Navigations/navigations';
 import ImageZoomModal from '../../Components/ImageZoomModal';
+import { resolveImageUrl } from '../../utils/imageUtils';
 
 /* ================= BANNER LIST ================= */
 const BANNERS = [
@@ -62,16 +63,8 @@ const ProfileScreen = ({ navigation }: any) => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [showProfileImage, setShowProfileImage] = useState(false);
-  const [stableImgUrl, setStableImgUrl] = useState(user?.profile_picture);
 
-  // Sync stable image URL whenever it's valid
-  React.useEffect(() => {
-    if (user?.profile_picture && user.profile_picture.trim() !== '') {
-      setStableImgUrl(user.profile_picture);
-    }
-  }, [user?.profile_picture]);
-
-  // Reset error when image URL changes
+  // Reset error when the actual photo changes (e.g. new selfie uploaded)
   React.useEffect(() => {
     setImgError(false);
   }, [user?.profile_picture]);
@@ -164,7 +157,7 @@ const ProfileScreen = ({ navigation }: any) => {
         <Pressable
           style={styles.avatarWrapper}
           onPress={() => {
-            if (stableImgUrl && !imgError) {
+            if (user?.profile_picture && !imgError) {
               setShowProfileImage(true);
             }
           }}
@@ -179,10 +172,10 @@ const ProfileScreen = ({ navigation }: any) => {
               })()}
             </Text>
 
-            {stableImgUrl && !imgError && (
+            {user?.profile_picture && !imgError && (
               <Image
                 source={{
-                  uri: stableImgUrl.startsWith('http') ? stableImgUrl : 'file://' + stableImgUrl,
+                  uri: resolveImageUrl(user.profile_picture),
                 }}
                 style={[styles.avatar, { position: 'absolute', top: 0, left: 0 }]}
                 fadeDuration={0}
@@ -400,7 +393,7 @@ const ProfileScreen = ({ navigation }: any) => {
 
       <ImageZoomModal
         visible={showProfileImage}
-        imageUris={stableImgUrl ? [stableImgUrl] : []}
+        imageUris={user?.profile_picture ? [resolveImageUrl(user.profile_picture) || ''] : []}
         onClose={() => setShowProfileImage(false)}
       />
 

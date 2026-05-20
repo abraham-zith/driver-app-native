@@ -107,7 +107,11 @@ const RideDetailScreen: React.FC<any> = ({ route, navigation }) => {
       customer: {
         ...initialRide.customer,
         name: tripData.passenger_name || tripData.customer?.name || initialRide.customer?.name || 'Customer',
-        ratingGiven: tripData.rating || tripData.user_rating || tripData.trip_rating || initialRide.customer?.ratingGiven,
+        ratingGiven: (() => {
+          const rawRating = tripData.rating ?? tripData.user_rating ?? tripData.trip_rating ?? initialRide.customer?.ratingGiven;
+          const parsed = rawRating != null ? Number(rawRating) : NaN;
+          return isNaN(parsed) ? undefined : parsed;
+        })(),
         comment: tripData.feedback || tripData.comment || tripData.user_feedback || initialRide.customer?.comment || '',
       },
       fareDetails: {
@@ -235,7 +239,7 @@ const RideDetailScreen: React.FC<any> = ({ route, navigation }) => {
                   </Text>
                   <Text style={[styles.dateTime, isDark && { color: '#9CA3AF' }]}>{ride.date} • {ride.time}</Text>
                 </View>
-                <StatusBadge status={ride.status} label={t(ride.status.toLowerCase())} isDark={isDark} />
+                <StatusBadge status={ride.status} label={ride.status ? t(ride.status.toLowerCase()) : ''} isDark={isDark} />
               </View>
 
               <View style={[styles.divider, isDark && { backgroundColor: '#374151' }]} />
@@ -273,10 +277,14 @@ const RideDetailScreen: React.FC<any> = ({ route, navigation }) => {
                     {ride.status === 'Completed' ? (
                       <View style={[styles.ratingBox, isDark && { backgroundColor: 'rgba(251, 191, 36, 0.1)', borderColor: 'rgba(251, 191, 36, 0.2)' }]}>
                         <Ionicons name="star" size={14} color="#FBBF24" />
-                        <Text style={[styles.ratingText, isDark && { color: '#FCD34D' }]}>{ride.customer.ratingGiven?.toFixed(1) || t('no_rating')}</Text>
+                        <Text style={[styles.ratingText, isDark && { color: '#FCD34D' }]}>
+                          {ride.customer.ratingGiven !== undefined ? ride.customer.ratingGiven.toFixed(1) : t('no_rating')}
+                        </Text>
                       </View>
                     ) : (
-                      <Text style={[styles.noRatingText, isDark && { color: '#9CA3AF' }]}>{t('trip')} {t(ride.status.toLowerCase())}</Text>
+                      <Text style={[styles.noRatingText, isDark && { color: '#9CA3AF' }]}>
+                        {t('trip')} {ride.status ? t(ride.status.toLowerCase()) : ''}
+                      </Text>
                     )}
                   </View>
                 </View>

@@ -478,7 +478,7 @@ const DocumentScreen = ({ navigation }: any) => {
     >
       <AppStatusBar />
       {/* --- WAITING MODAL (No skip allowed) --- */}
-      <Modal visible={isWaitingForAdmin} animationType="fade">
+      <Modal visible={isWaitingForAdmin} animationType="fade" transparent={true} statusBarTranslucent={true}>
         <LinearGradient
           colors={['#FFFFFF', '#F5F7FF', '#EEF2FF']}
           style={styles.waitingContainer}

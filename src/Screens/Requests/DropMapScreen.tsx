@@ -61,7 +61,7 @@ const darkMapStyle = [
 
 const DropMapScreen = ({ route }: any) => {
   // 1. Core Hooks
-  const { showAlert } = useAlert();
+  const { showAlert, hideAlert } = useAlert();
   const { t } = useTranslation();
   const navigation = useNavigation<StackNavigationProp<any>>();
   const theme = useAppTheme().theme;
@@ -585,11 +585,21 @@ const DropMapScreen = ({ route }: any) => {
   }, [trip_id, destinationReachedApi, successScale, triggerHaptic, navigation, ride, distance, showAlert, t]);
 
   const handleCancelTrip = async (reason: string) => {
+    const isStandard = [
+      'PERSONAL_EMERGENCY',
+      'VEHICLE_PROBLEM',
+      'PICKUP_TOO_FAR',
+      'RIDER_NOT_RESPONDING',
+      'RIDER_ASKED_TO_CANCEL',
+      'TECHNICAL_ISSUE'
+    ].includes(reason);
+
     try {
       await cancelTripApi({
         tripId: trip_id,
-        cancel_reason: reason,
-        cancel_by: 'DRIVER'
+        cancel_reason: isStandard ? reason : 'OTHER',
+        cancel_by: 'DRIVER',
+        notes: isStandard ? undefined : reason
       }).unwrap();
 
       setShowCancelModal(false);
@@ -598,11 +608,13 @@ const DropMapScreen = ({ route }: any) => {
         message: t('trip_cancelled_msg') || 'The trip has been cancelled successfully.',
         singleButton: true,
         icon: 'close-circle-outline',
-        onConfirm: () => {
-          dispatch(clearAcceptedRide());
-          navigation.dispatch(StackActions.replace('DashboardScreen'));
-        }
       });
+
+      setTimeout(() => {
+        hideAlert();
+        dispatch(clearAcceptedRide());
+        navigation.dispatch(StackActions.replace('DashboardScreen'));
+      }, 1500);
     } catch (error: any) {
       console.error('Cancellation failed:', error);
       showAlert({

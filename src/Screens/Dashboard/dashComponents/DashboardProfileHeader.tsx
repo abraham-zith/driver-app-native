@@ -33,7 +33,7 @@ const DashboardProfileHeader: React.FC<Props> = ({
     const { t } = useTranslation();
     const [imgError, setImgError] = React.useState(false);
 
-    // Reset error when image URL changes
+    // Reset error when the actual photo changes (e.g. new selfie uploaded)
     React.useEffect(() => {
         setImgError(false);
     }, [profileImage]);

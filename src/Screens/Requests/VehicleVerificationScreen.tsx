@@ -118,12 +118,18 @@ const VehicleVerificationScreen = ({ route }: any) => {
     }, [navigation])
   );
   const [vehiclePhotos, setVehiclePhotos] = useState<Record<string, boolean>>({
-    car_image: false,
+    front: false,
+    back: false,
+    left: false,
+    right: false,
   });
 
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const [vehicleUris, setVehicleUris] = useState<Record<string, string | null>>({
-    car_image: null,
+    front: null,
+    back: null,
+    left: null,
+    right: null,
   });
 
   const [status, setStatus] = useState<Status>('COLLECTING');
@@ -179,8 +185,8 @@ const VehicleVerificationScreen = ({ route }: any) => {
         }
         if (v.car_image_status === 'rejected') {
           rejectedImages.push(`Car Image (${v.car_image_remarks || 'No reason provided'})`);
-          setVehiclePhotos((prev) => ({ ...prev, car_image: false }));
-          setVehicleUris((prev) => ({ ...prev, car_image: null }));
+          setVehiclePhotos((prev) => ({ ...prev, front: false, back: false, left: false, right: false }));
+          setVehicleUris((prev) => ({ ...prev, front: null, back: null, left: null, right: null }));
         }
 
         if (rejectedImages.length > 0) {
@@ -218,8 +224,8 @@ const VehicleVerificationScreen = ({ route }: any) => {
         }
         if (data.car_image_status === 'rejected') {
           rejectedImages.push(`Car Image (${data.car_image_remarks})`);
-          setVehiclePhotos((prev) => ({ ...prev, car_image: false }));
-          setVehicleUris((prev) => ({ ...prev, car_image: null }));
+          setVehiclePhotos((prev) => ({ ...prev, front: false, back: false, left: false, right: false }));
+          setVehicleUris((prev) => ({ ...prev, front: null, back: null, left: null, right: null }));
         }
 
         showAlert({
@@ -273,8 +279,8 @@ const VehicleVerificationScreen = ({ route }: any) => {
 
   /* ================= HELPERS ================= */
 
-  const vehicleCount = vehiclePhotos.car_image ? 1 : 0;
-  const totalSteps = 2; // Selfie + 1 Car Image
+  const vehicleCount = Object.values(vehiclePhotos).filter(Boolean).length;
+  const totalSteps = 5; // Selfie + 4 Car Images
   const completedSteps = (selfieTaken ? 1 : 0) + vehicleCount;
   const donePercent = Math.round((completedSteps / totalSteps) * 100);
   const canSubmit = completedSteps === totalSteps && status === 'COLLECTING';
@@ -398,7 +404,7 @@ const VehicleVerificationScreen = ({ route }: any) => {
     if (!canSubmit) {
       const missing = [];
       if (!selfieTaken) missing.push('Driver Selfie');
-      if (vehicleCount < 1) missing.push(`Car Image`);
+      if (vehicleCount < 4) missing.push(`All 4 sides of vehicle`);
       showAlert({
         title: t('common.incomplete'),
         message: `${t('complete_all_steps')}\n- ${missing.join('\n- ')}`,
@@ -416,18 +422,22 @@ const VehicleVerificationScreen = ({ route }: any) => {
       // 1. Upload Selfie
       const selfieS3Url = await uploadFile(selfieUri!, 'trip_selfie');
 
-      // 2. Upload Vehicle Photo
-      let carImageS3Url = '';
-      if (vehicleUris.car_image) {
-          carImageS3Url = await uploadFile(vehicleUris.car_image, `vehicle_car_image`);
+      // 2. Upload Vehicle Photos
+      const carImagesS3Urls: string[] = [];
+      const vehicleKeys = ['front', 'back', 'left', 'right'];
+      for (const key of vehicleKeys) {
+        if (vehicleUris[key]) {
+          const s3Url = await uploadFile(vehicleUris[key] as string, `vehicle_car_image_${key}`);
+          if (s3Url) carImagesS3Urls.push(s3Url);
+        }
       }
 
       // 3. Submit to backend
       await submitTripPhotos({
         driverId: user.driverId,
         selfie_url: selfieS3Url,
-        car_image_url: carImageS3Url, // Use granular string parameter
-        car_images: [], // Deprecated fallback
+        car_image_url: carImagesS3Urls[0] || '', // Fallback to first image
+        car_images: carImagesS3Urls,
         trip_id: ride?.trip_id,
       }).unwrap();
       console.log('[VehicleVerification] Submission to backend successful');
@@ -600,8 +610,8 @@ const VehicleVerificationScreen = ({ route }: any) => {
               {/* STEP 2: VEHICLE PHOTOS */}
               <Animated.View style={[styles.stepSection, { backgroundColor: cardBg, borderColor: borderColorTheme }, selfieTaken && vehicleCount < 4 && styles.stepActive, selfieTaken && vehicleCount < 4 && glowStyle]}>
                 <View style={styles.stepHeader}>
-                  <View style={[styles.stepNumber, { backgroundColor: borderColorTheme }, vehicleCount === 1 && { backgroundColor: SCREENSHOT_GREEN }]}>
-                    {vehicleCount === 1 ? (
+                  <View style={[styles.stepNumber, { backgroundColor: borderColorTheme }, vehicleCount === 4 && { backgroundColor: SCREENSHOT_GREEN }]}>
+                    {vehicleCount === 4 ? (
                       <Ionicons name="checkmark" size={ms(16)} color="#FFF" />
                     ) : (
                       <Text style={[styles.stepNumberText, { color: textPrimary }]}>2</Text>
@@ -613,7 +623,7 @@ const VehicleVerificationScreen = ({ route }: any) => {
                       {selfieTaken ? t('Live car photo') : t('complete_selfie_first')}
                     </Text>
                   </View>
-                  {vehicleCount === 1 && (
+                  {vehicleCount === 4 && (
                     <View style={[styles.donePillBadge, { backgroundColor: borderColorTheme }]}>
                       <Ionicons name="checkmark" size={ms(12)} color={SCREENSHOT_GREEN} />
                       <Text style={styles.donePillText}>Done</Text>
@@ -630,12 +640,42 @@ const VehicleVerificationScreen = ({ route }: any) => {
                   <View style={styles.gridContainer}>
                     <View style={styles.gridRow}>
                       <PhotoItem
-                        label={t('front_view')}
-                        icon="car-connected"
+                        label={t('front_view') || 'Front'}
+                        icon="car"
                         lib="MCI"
-                        success={vehiclePhotos.car_image}
-                        photoUri={vehicleUris.car_image}
-                        onPress={() => captureVehicle('car_image')}
+                        success={vehiclePhotos.front}
+                        photoUri={vehicleUris.front}
+                        onPress={() => captureVehicle('front')}
+                        isDark={isDark}
+                      />
+                      <PhotoItem
+                        label={t('back_view') || 'Back'}
+                        icon="car"
+                        lib="MCI"
+                        success={vehiclePhotos.back}
+                        photoUri={vehicleUris.back}
+                        onPress={() => captureVehicle('back')}
+                        isDark={isDark}
+                      />
+                    </View>
+                    <View style={styles.gridRow}>
+                      <PhotoItem
+                        label={t('left_side') || 'Left'}
+                        icon="car-side"
+                        lib="MCI"
+                        success={vehiclePhotos.left}
+                        photoUri={vehicleUris.left}
+                        onPress={() => captureVehicle('left')}
+                        scaleX={-1}
+                        isDark={isDark}
+                      />
+                      <PhotoItem
+                        label={t('right_side') || 'Right'}
+                        icon="car-side"
+                        lib="MCI"
+                        success={vehiclePhotos.right}
+                        photoUri={vehicleUris.right}
+                        onPress={() => captureVehicle('right')}
                         isDark={isDark}
                       />
                     </View>
@@ -822,7 +862,7 @@ const VerifiedView = ({ startTripAction, isDark, bgColor, textPrimary, textSecon
 
       <View style={styles.summaryStatsRow}>
         <View style={[styles.statCard, { backgroundColor: cardBg, borderColor: borderColorTheme }]}>
-          <Text style={[styles.statValue, { color: textPrimary }]}>2</Text>
+          <Text style={[styles.statValue, { color: textPrimary }]}>5</Text>
           <Text style={[styles.statLabel, { color: textSecondary }]}>{t('photos_stat')}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: cardBg, borderColor: borderColorTheme }]}>

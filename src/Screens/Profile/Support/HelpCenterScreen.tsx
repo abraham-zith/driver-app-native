@@ -19,6 +19,7 @@ import { useAppTheme } from '../../../context/ThemeContext';
 import { Text, Input } from '../../../Components';
 import AppStatusBar from '../../../Components/AppStatusBar';
 import { hS as s, vS as vs, mS as ms } from '../../../lib/scale';
+import FaqChatbotModal from '../../Onboarding/FaqChatbotModal';
 
 /* ================= TYPES ================= */
 interface FAQ {
@@ -106,13 +107,23 @@ const AccordionItem = ({ item, isExpanded, onPress }: { item: FAQ, isExpanded: b
     );
 };
 
-const HelpCenterScreen = ({ navigation }: any) => {
+const HelpCenterScreen = ({ navigation, route }: any) => {
     const { t } = useTranslation();
     const { theme, isDark } = useAppTheme();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [chatVisible, setChatVisible] = useState(false);
+
+    // Handle deep link parameter to automatically open the chat
+    React.useEffect(() => {
+        if (route.params?.openChat) {
+            setChatVisible(true);
+            // Clear the param so it doesn't reopen if the user navigates back and forth
+            navigation.setParams({ openChat: undefined });
+        }
+    }, [route.params?.openChat, navigation]);
 
     const filteredFAQs = useMemo(() => {
         return FAQ_DATA.filter(faq => {
@@ -225,7 +236,7 @@ const HelpCenterScreen = ({ navigation }: any) => {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.actionBtn, { backgroundColor: isDark ? '#334155' : '#FFFFFF', borderWidth: 1, borderColor: '#3B82F6' }]}
-                            onPress={() => navigation.navigate('ContactSupportScreen')}
+                            onPress={() => setChatVisible(true)}
                         >
                             <Ionicons name="chatbubbles" size={s(18)} color="#3B82F6" />
                             <Text style={[styles.actionBtnText, { color: '#3B82F6' }]}>{t('chat_now', 'Chat Now')}</Text>
@@ -233,6 +244,8 @@ const HelpCenterScreen = ({ navigation }: any) => {
                     </View>
                 </View>
             </ScrollView>
+
+            <FaqChatbotModal visible={chatVisible} onClose={() => setChatVisible(false)} />
         </SafeAreaView>
     );
 };
