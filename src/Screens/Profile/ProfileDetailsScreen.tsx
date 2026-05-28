@@ -30,7 +30,7 @@ const CardSection = ({ title, icon, children, s, headerIconColor }: any) => (
       <View style={s.cardHeaderIconWrap}>
         <Ionicons name={icon} size={16} color={headerIconColor} />
       </View>
-      <Text style={s.cardHeaderTitle}>{title}</Text>
+      <Text style={s.cardHeaderTitle} numberOfLines={1} adjustsFontSizeToFit>{title}</Text>
     </View>
     {children}
   </View>
@@ -500,10 +500,10 @@ export default function ProfileDetailsScreen({ navigation }: any) {
 
             <View style={s.pillsRow}>
               <View style={[s.verifiedPill, { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10B981' }]}>
-                <Text style={[s.verifiedPillText, { color: '#10B981' }]}>{t('verified')}</Text>
+                <Text style={[s.verifiedPillText, { color: '#10B981' }]} numberOfLines={1} adjustsFontSizeToFit>{t('verified')}</Text>
               </View>
               <View style={[s.activePill, { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderColor: '#F59E0B' }]}>
-                <Text style={[s.activePillText, { color: '#F59E0B' }]}>{t('active')}</Text>
+                <Text style={[s.activePillText, { color: '#F59E0B' }]} numberOfLines={1} adjustsFontSizeToFit>{t('active')}</Text>
               </View>
             </View>
 
@@ -518,7 +518,7 @@ export default function ProfileDetailsScreen({ navigation }: any) {
                 onPress={() => setEditModalVisible(true)}
               >
                 <Ionicons name="pencil" size={18} color="#152D5E" />
-                <Text style={[s.editButtonText, { color: '#152D5E' }]}>
+                <Text style={[s.editButtonText, { color: '#152D5E' }]} numberOfLines={1} adjustsFontSizeToFit>
                   {profileRequest?.status === 'PENDING' ? t('edit_disabled') : t('edit_profile')}
                 </Text>
               </Pressable>
@@ -528,7 +528,7 @@ export default function ProfileDetailsScreen({ navigation }: any) {
                 style={[s.documentsButton, { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' }]}
               >
                 <Ionicons name="document-text-outline" size={18} color="#FFFFFF" />
-                <Text style={[s.documentsButtonText, { color: '#FFFFFF' }]}>{t('documents')}</Text>
+                <Text style={[s.documentsButtonText, { color: '#FFFFFF' }]} numberOfLines={1} adjustsFontSizeToFit>{t('documents')}</Text>
               </Pressable>
             </View>
           </View>
@@ -541,7 +541,7 @@ export default function ProfileDetailsScreen({ navigation }: any) {
               <Ionicons name="shield-checkmark" size={20} color={isDark ? '#34D399' : '#059669'} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.bannerTitle}>{t('profile_verified')}</Text>
+              <Text style={s.bannerTitle} numberOfLines={1} adjustsFontSizeToFit>{t('profile_verified')}</Text>
               <Text style={s.bannerDesc}>
                 {t('profile_verified_desc')}
               </Text>
@@ -649,7 +649,7 @@ export default function ProfileDetailsScreen({ navigation }: any) {
             <View style={s.modalIconBg}>
               <Ionicons name="information-circle" size={32} color="#3B82F6" />
             </View>
-            <Text style={s.modalTitle}>{t('profile_update_title')}</Text>
+            <Text style={s.modalTitle} numberOfLines={1} adjustsFontSizeToFit>{t('profile_update_title')}</Text>
             <Text style={s.modalText}>
               {t('profile_update_call_desc')}
             </Text>
@@ -662,14 +662,14 @@ export default function ProfileDetailsScreen({ navigation }: any) {
               }}
             >
               <Ionicons name="call" size={20} color="#FFFFFF" />
-              <Text style={s.modalCallBtnText}>{t('call_support')}</Text>
+              <Text style={s.modalCallBtnText} numberOfLines={1} adjustsFontSizeToFit>{t('call_support')}</Text>
             </Pressable>
 
             <Pressable
               style={s.modalCancelBtn}
               onPress={() => setEditModalVisible(false)}
             >
-              <Text style={s.modalCancelBtnText}>{t('cancel')}</Text>
+              <Text style={s.modalCancelBtnText} numberOfLines={1} adjustsFontSizeToFit>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>

@@ -280,10 +280,10 @@ const PremiumWheelPicker = ({
         style={styles.pickerContainer}
       >
         <View style={styles.pickerHeader}>
-          <Text style={styles.pickerTitle}>{t('date_of_birth')}</Text>
+          <Text style={styles.pickerTitle} numberOfLines={1} adjustsFontSizeToFit>{t('date_of_birth')}</Text>
           <TouchableOpacity onPress={handleConfirm} style={styles.doneBtn}>
             <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.doneGradient}>
-              <Text style={styles.doneText}>{t('continue')}</Text>
+              <Text style={styles.doneText} numberOfLines={1} adjustsFontSizeToFit>{t('continue')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -697,7 +697,7 @@ const PersonalDetails = ({ navigation }: any) => {
               </View>
 
               {/* DOB */}
-              <Text style={styles.sectionTitle}>{t('date_of_birth')}</Text>
+              <Text style={styles.sectionTitle} numberOfLines={1} adjustsFontSizeToFit>{t('date_of_birth')}</Text>
               <View style={{ position: 'relative' }}>
                 <Input
                   value={dobText}
@@ -718,7 +718,7 @@ const PersonalDetails = ({ navigation }: any) => {
               </View>
 
               {/* GENDER */}
-              <Text style={styles.sectionTitle}>{t('gender')}</Text>
+              <Text style={styles.sectionTitle} numberOfLines={1} adjustsFontSizeToFit>{t('gender')}</Text>
               <View style={styles.genderRow}>
                 {(['male', 'female', 'other'] as const).map((option, index) => (
                   <GenderOption
@@ -779,10 +779,10 @@ const PersonalDetails = ({ navigation }: any) => {
                 style={styles.pickerContainer}
               >
                 <View style={styles.pickerHeader}>
-                  <Text style={styles.pickerTitle}>{t('date_of_birth')}</Text>
+                  <Text style={styles.pickerTitle} numberOfLines={1} adjustsFontSizeToFit>{t('date_of_birth')}</Text>
                   <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.doneBtn}>
                     <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.doneGradient}>
-                      <Text style={styles.doneText}>{t('continue')}</Text>
+                      <Text style={styles.doneText} numberOfLines={1} adjustsFontSizeToFit>{t('continue')}</Text>
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>

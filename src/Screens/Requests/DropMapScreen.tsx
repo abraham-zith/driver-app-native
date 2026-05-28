@@ -777,7 +777,7 @@ const DropMapScreen = ({ route }: any) => {
           style={styles.liveIndicator}
         >
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>{t('pickup.live_tracking') || 'Live Tracking Active'}</Text>
+          <Text style={styles.liveText} numberOfLines={1} adjustsFontSizeToFit>{t('pickup.live_tracking') || 'Live Tracking Active'}</Text>
         </Animated.View>
 
         <View style={styles.rightActionsColumn}>
@@ -786,7 +786,7 @@ const DropMapScreen = ({ route }: any) => {
             onPress={handleSOS}
           >
             <Ionicons name="alert-circle" size={ms(18)} color="#FFF" style={{ marginRight: ms(6) }} />
-            <Text style={styles.sosText}>{t('sos') || 'SOS'}</Text>
+            <Text style={styles.sosText} numberOfLines={1} adjustsFontSizeToFit>{t('sos') || 'SOS'}</Text>
           </TouchableOpacity>
 
           {routeCoords.length > 0 && (
@@ -913,7 +913,7 @@ const DropMapScreen = ({ route }: any) => {
                 style={styles.detailsLink} 
                 onPress={() => setShowRideDetailsModal(true)}
               >
-                <Text style={[styles.detailsLinkText, { color: theme.colors.primary }]}>{t('view_ride_details') || 'View Ride Details'}</Text>
+                <Text style={[styles.detailsLinkText, { color: theme.colors.primary }]} numberOfLines={1} adjustsFontSizeToFit>{t('view_ride_details') || 'View Ride Details'}</Text>
                 <Ionicons name="chevron-forward" size={ms(16)} color={theme.colors.primary} />
               </TouchableOpacity>
 
@@ -930,7 +930,7 @@ const DropMapScreen = ({ route }: any) => {
                 style={styles.cancelTripBtn}
                 onPress={() => setShowCancelModal(true)}
               >
-                <Text style={styles.cancelTxt}>{t('pickup.cancel_ride')}</Text>
+                <Text style={styles.cancelTxt} numberOfLines={1} adjustsFontSizeToFit>{t('pickup.cancel_ride')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -943,8 +943,8 @@ const DropMapScreen = ({ route }: any) => {
             <View style={styles.successIconOuter}>
               <Ionicons name="checkmark-sharp" size={ms(45)} color="#fff" />
             </View>
-            <Text style={[styles.successTitle, { color: theme.colors.text }]}>{t('trip_completed') || "Trip Completed!"}</Text>
-            <Text style={styles.successSub}>{t('collect_payment') || "Please collect payment from rider"}</Text>
+            <Text style={[styles.successTitle, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{t('trip_completed') || "Trip Completed!"}</Text>
+            <Text style={styles.successSub} numberOfLines={1} adjustsFontSizeToFit>{t('collect_payment') || "Please collect payment from rider"}</Text>
           </Animated.View>
         </View>
       )}
@@ -960,7 +960,7 @@ const DropMapScreen = ({ route }: any) => {
           <View style={[styles.detailsModal, { backgroundColor: theme.colors.card }]}>
             <View style={[styles.modalIndicator, { backgroundColor: theme.colors.border }]} />
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.success || '#10B981' }]}>
+              <Text style={[styles.modalTitle, { color: theme.colors.success || '#10B981' }]} numberOfLines={1} adjustsFontSizeToFit>
                 {t('trip_details').toUpperCase() || 'TRIP DETAILS'}
               </Text>
             </View>
@@ -1010,7 +1010,7 @@ const DropMapScreen = ({ route }: any) => {
                     </View>
                   </View>
                   <View style={[styles.serviceTag, { backgroundColor: theme.colors.primary + '15' }]}>
-                    <Text style={[styles.serviceTagText, { color: theme.colors.primary }]}>{t(`booking_type_${(ride.booking_type || 'live').toLowerCase()}`)}</Text>
+                    <Text style={[styles.serviceTagText, { color: theme.colors.primary }]} numberOfLines={1} adjustsFontSizeToFit>{t(`booking_type_${(ride.booking_type || 'live').toLowerCase()}`)}</Text>
                   </View>
                 </View>
               </View>
@@ -1023,7 +1023,7 @@ const DropMapScreen = ({ route }: any) => {
                     <View style={[styles.routeLine, { backgroundColor: theme.colors.border, height: vs(25) }]} />
                   </View>
                   <View style={styles.routeTextBody}>
-                    <Text style={[styles.detailLabel, { color: theme.colors.primary }]}>{t('pickup_caps') || 'PICKUP'}</Text>
+                    <Text style={[styles.detailLabel, { color: theme.colors.primary }]} numberOfLines={1} adjustsFontSizeToFit>{t('pickup_caps') || 'PICKUP'}</Text>
                     <Text style={[styles.detailValue, { color: theme.colors.text }]}>
                       {ride.pickup_address || ride.pickup || t('location_not_available')}
                     </Text>
@@ -1035,7 +1035,7 @@ const DropMapScreen = ({ route }: any) => {
                     <Ionicons name="location" size={ms(18)} color="#B91C1C" />
                   </View>
                   <View style={styles.routeTextBody}>
-                    <Text style={[styles.detailLabel, { color: '#B91C1C' }]}>{t('drop_caps') || 'DROP-OFF'}</Text>
+                    <Text style={[styles.detailLabel, { color: '#B91C1C' }]} numberOfLines={1} adjustsFontSizeToFit>{t('drop_caps') || 'DROP-OFF'}</Text>
                     <Text style={[styles.detailValue, { color: theme.colors.text }]}>
                       {ride.drop_address || ride.dropoff || ride.drop || t('location_not_available')}
                     </Text>
@@ -1077,7 +1077,7 @@ const DropMapScreen = ({ route }: any) => {
                       <Text style={[styles.detailValue, { color: theme.colors.text, fontSize: ms(15) }]}>
                         {ride.payment_method === 'CASH' || ride.paymentMethod === 'Cash' ? (t('payment_cash') || 'Cash Payment') : (t('payment_online') || 'Online Payment')}
                       </Text>
-                      <Text style={[styles.detailLabel, { color: theme.colors.paragraphText, fontSize: ms(11) }]}>{t('collect_from_customer') || 'Collect total amount from customer'}</Text>
+                      <Text style={[styles.detailLabel, { color: theme.colors.paragraphText, fontSize: ms(11) }]} numberOfLines={1} adjustsFontSizeToFit>{t('collect_from_customer') || 'Collect total amount from customer'}</Text>
                     </View>
                   </View>
                 </View>
@@ -1088,7 +1088,7 @@ const DropMapScreen = ({ route }: any) => {
               style={[styles.closeModalBtn, { backgroundColor: theme.colors.primary }]}
               onPress={() => setShowRideDetailsModal(false)}
             >
-              <Text style={[styles.closeModalBtnText, { color: theme.colors.card }]}>{t('close') || 'Close'}</Text>
+              <Text style={[styles.closeModalBtnText, { color: theme.colors.card }]} numberOfLines={1} adjustsFontSizeToFit>{t('close') || 'Close'}</Text>
             </TouchableOpacity>
           </View>
         </View>

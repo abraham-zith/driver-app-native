@@ -173,7 +173,7 @@ const HelpCenterModal = ({ visible, onClose }: any) => {
       >
         <View style={styles.content}>
           <View style={styles.headerRow}>
-            <Text style={[styles.headerTitle, { color: colors.text, ...fonts.bold }]}>{t('help_center', 'Help Center')}</Text>
+            <Text style={[styles.headerTitle, { color: colors.text, ...fonts.bold }]} numberOfLines={1} adjustsFontSizeToFit>{t('help_center', 'Help Center')}</Text>
             <TouchableOpacity 
               style={[styles.closeButton, { backgroundColor: dark ? colors.card : '#F3F4F6' }]} 
               onPress={() => bottomSheetModalRef.current?.dismiss()}
@@ -197,15 +197,15 @@ const HelpCenterModal = ({ visible, onClose }: any) => {
                 <Ionicons name="sparkles" size={mS(20)} color="#FFF" />
               </View>
               <View style={styles.aiTextWrapper}>
-                <Text style={[styles.aiTitle, { color: colors.primary, ...fonts.bold }]}>Chat with AI Assistant</Text>
-                <Text style={[styles.aiSubtitle, { color: colors.text, opacity: 0.7, ...fonts.regular }]}>Get instant answers to your questions</Text>
+                <Text style={[styles.aiTitle, { color: colors.primary, ...fonts.bold }]} numberOfLines={1} adjustsFontSizeToFit>Chat with AI Assistant</Text>
+                <Text style={[styles.aiSubtitle, { color: colors.text, opacity: 0.7, ...fonts.regular }]} numberOfLines={1} adjustsFontSizeToFit>Get instant answers to your questions</Text>
               </View>
               <Ionicons name="chevron-forward" size={mS(20)} color={colors.primary} />
             </TouchableOpacity>
 
             {/* Layer 2: Searchable FAQ */}
             <View style={[styles.sectionContainer, { marginTop: vS(16) }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text, ...fonts.bold }]}>Frequently Asked Questions</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text, ...fonts.bold }]} numberOfLines={1} adjustsFontSizeToFit>Frequently Asked Questions</Text>
               <View style={[styles.searchBar, { backgroundColor: dark ? colors.card : '#F3F4F6' }]}>
                 <Ionicons name="search" size={mS(16)} color={colors.text} style={{ opacity: 0.5 }} />
                 <BottomSheetTextInput
@@ -246,7 +246,7 @@ const HelpCenterModal = ({ visible, onClose }: any) => {
 
           {/* Layer 4: Human Escalation */}
           <View style={[styles.supportFooter, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, vS(16)) }]}>
-            <Text style={[styles.supportFooterTitle, { color: colors.text, ...fonts.bold }]}>Still need help?</Text>
+            <Text style={[styles.supportFooterTitle, { color: colors.text, ...fonts.bold }]} numberOfLines={1} adjustsFontSizeToFit>Still need help?</Text>
             <View style={styles.supportOptionsRow}>
               {supportOptions.map((opt, i) => (
                 <TouchableOpacity 
@@ -257,7 +257,7 @@ const HelpCenterModal = ({ visible, onClose }: any) => {
                   <View style={[styles.iconCircle, { backgroundColor: opt.color }]}>
                     <Ionicons name={opt.icon} size={mS(14)} color="#FFF" />
                   </View>
-                  <Text style={[styles.supportText, { color: colors.text, ...fonts.bold }]}>{opt.label}</Text>
+                  <Text style={[styles.supportText, { color: colors.text, ...fonts.bold }]} numberOfLines={1} adjustsFontSizeToFit>{opt.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>

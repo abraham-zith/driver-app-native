@@ -406,7 +406,7 @@ const DriverPerformanceScreen = ({ navigation }: any) => {
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={isDark ? '#FFFFFF' : '#111827'} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: isDark ? '#FFFFFF' : '#111827' }]}>{t('driver_performance', 'Driver Performance')}</Text>
+        <Text style={[styles.headerTitle, { color: isDark ? '#FFFFFF' : '#111827' }]} numberOfLines={1} adjustsFontSizeToFit>{t('driver_performance', 'Driver Performance')}</Text>
         <Pressable style={styles.infoBtn}>
           <Ionicons name="information-circle-outline" size={24} color={isDark ? '#FFFFFF' : '#111827'} />
         </Pressable>
@@ -445,7 +445,7 @@ const DriverPerformanceScreen = ({ navigation }: any) => {
         <Animated.View style={[styles.heroSection, headerStyle, { backgroundColor: isDark ? '#1F2937' : '#FFF' }]}>
           <PerformanceGauge value={metrics.completionRate} loading={isLoading} />
           <View style={styles.heroSummary}>
-            <Text style={[styles.summaryTitle, { color: isDark ? '#FFFFFF' : '#111827' }]}>{t('overall_performance', 'Overall Performance')}</Text>
+            <Text style={[styles.summaryTitle, { color: isDark ? '#FFFFFF' : '#111827' }]} numberOfLines={1} adjustsFontSizeToFit>{t('overall_performance', 'Overall Performance')}</Text>
             <Text style={[styles.summarySub, { color: isDark ? '#D1D5DB' : '#6B7280' }]}>
               {error ? t('performance_load_error', 'Could not load your performance data.') : t('performance_period_desc', { period: t(period.toLowerCase()) })}
             </Text>
@@ -491,7 +491,7 @@ const DriverPerformanceScreen = ({ navigation }: any) => {
 
         {/* Insight Section */}
         <View style={styles.insightSection}>
-          <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#111827' }]}>{t('performance_insights', 'Performance Insights')}</Text>
+          <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#111827' }]} numberOfLines={1} adjustsFontSizeToFit>{t('performance_insights', 'Performance Insights')}</Text>
           <View style={[styles.insightCard, { backgroundColor: isDark ? '#1F2937' : '#FFF', borderColor: isDark ? '#374151' : '#F3F4F6' }]}>
             {dynamicInsights.map((insight, index) => (
               <View key={index} style={styles.insightRow}>
@@ -506,7 +506,7 @@ const DriverPerformanceScreen = ({ navigation }: any) => {
 
         {/* Footer Info */}
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: isDark ? '#9CA3AF' : '#9CA3AF' }]}>{t('updated_just_now', 'Updated: Just Now')}</Text>
+          <Text style={[styles.footerText, { color: isDark ? '#9CA3AF' : '#9CA3AF' }]} numberOfLines={1} adjustsFontSizeToFit>{t('updated_just_now', 'Updated: Just Now')}</Text>
         </View>
       </ScrollView>
     </View>
