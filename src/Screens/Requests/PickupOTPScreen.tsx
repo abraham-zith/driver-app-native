@@ -367,9 +367,7 @@ const PickupOTPModal = ({ isVisible, onClose, ride: rideFromProps }: PickupOTPMo
       const correctOtp = ride?.otp || DEMO_OTP;
       if (enteredOtp === correctOtp) {
         try {
-          // Call Backend to Start Trip
-          await startTripApi(ride?.trip_id).unwrap();
-
+          // Navigate to verification screen first, startTrip will happen after approval
           setIsLoading(false);
           triggerHaptic(HapticFeedbackTypes.notificationSuccess);
           setIsVerified(true);

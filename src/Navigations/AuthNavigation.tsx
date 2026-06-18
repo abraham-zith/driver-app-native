@@ -3,21 +3,21 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTheme } from '@react-navigation/native';
 
 import {
-  LanguageScreen_Nav,
   WelcomeScreen_Nav,
   PersonalDetails_Nav,
   AddressDetails_Nav,
   DocumentScreen_Nav,
   DocumentUploadScreen_Nav,
+  SmartSelfieScreen_Nav,
 } from './navigations';
 
-import LanguageScreen from '../Screens/Auth/LanguageScreen';
 import WelcomeScreen from '../Screens/Auth/WelcomeScreen';
 import OTPScreen from '../Screens/Auth/OTPScreen';
 import PersonalDetails from '../Screens/Auth/PersonalDetails';
 import AddressDetails from '../Screens/Auth/AddressDetails';
 import DocumentScreen from '../Screens/Auth/DocumentScreen';
 import DocumentUploadScreen from '../Screens/Auth/DocumentUploadScreen';
+import SmartSelfieScreen from '../Screens/Auth/SmartSelfieScreen';
 import { LeftArrow } from '../assets/svg';
 
 const Stack = createStackNavigator();
@@ -46,12 +46,6 @@ const AuthNavigation = () => {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {/* LANGUAGE */}
-      <Stack.Screen
-        name={LanguageScreen_Nav}
-        component={LanguageScreen}
-      />
-
       {/* WELCOME */}
       <Stack.Screen
         name={WelcomeScreen_Nav}
@@ -95,6 +89,13 @@ const AuthNavigation = () => {
         name={DocumentUploadScreen_Nav}
         component={DocumentUploadScreen}
         options={headerWithBack}
+      />
+
+      {/* SMART SELFIE SCREEN */}
+      <Stack.Screen
+        name={SmartSelfieScreen_Nav}
+        component={SmartSelfieScreen}
+        options={{ headerShown: false, presentation: 'modal' }}
       />
 
 

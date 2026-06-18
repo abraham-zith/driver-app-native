@@ -25,6 +25,7 @@ import { useSelector, useDispatch } from 'react-redux';
 
 import { PickupMapScreen_Nav } from '../../Navigations/navigations';
 import { useAppTheme } from '../../context/ThemeContext';
+import AppStatusBar from '../../Components/AppStatusBar';
 import { useAlert } from '../../context/AlertContext';
 import { hS as s, vS as vs, mS as ms } from '../../lib/scale';
 import RideSkeleton from './components/RideSkeleton';
@@ -500,18 +501,50 @@ const ScheduledRidesScreen = () => {
 
   /* ================= FILTERING & SORTING ================= */
 
+  const baseEligibleRides = useMemo(() => {
+    const subscription = subData?.data?.subscription || user?.subscription || user?.subscription_details;
+    const billingCycle = subscription?.billing_cycle; 
+    const planName = (subscription?.plan?.name || subscription?.plan?.plan_name || subscription?.plan_name || '').toLowerCase();
+    
+    return rides.filter((ride) => {
+      // 1. ALWAYS show your own accepted ride at the top, bypassing other filters
+      if (ride.trip_id === myAcceptedRideId) { return true; }
+
+      // Strictly include ONLY scheduled rides in this screen
+      if (ride.booking_type !== 'SCHEDULED') { return false; }
+
+      // 2. No new scheduled rides if it's a 'day' plan or no subscription
+      if (billingCycle === 'day' || !billingCycle) {
+        return false;
+      }
+
+      // 3. Plan based restrictions
+      const isPremium = planName.includes('premium');
+      const isElite = planName.includes('elite');
+      const isBasic = planName.includes('basic') || (!isPremium && !isElite); // Default to basic if unknown
+
+      const type = (ride.ride_type || ride.service_type || '').toLowerCase();
+      
+      if (isBasic) {
+        // Basic: only local, one_way
+        if (type !== 'local' && type !== 'one_way') return false;
+      } else if (isElite) {
+        // Elite: local, one_way, outstation (NO round_trip)
+        if (type === 'round_trip') return false;
+      }
+      
+      // Premium allows all
+      return true;
+    });
+  }, [rides, myAcceptedRideId, subData, user]);
+
   const filteredRides = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    let result = rides.filter((ride) => {
-      // ALWAYS show your own accepted ride at the top, bypassing other filters
-      if (ride.trip_id === myAcceptedRideId) { return true; }
-
-      // Strictly include ONLY scheduled rides in this screen
-      if (ride.booking_type !== 'SCHEDULED') { return false; }
+    let result = baseEligibleRides.filter((ride) => {
 
       const rideDate = new Date(ride.scheduled_start_time);
       const isToday = rideDate >= today && rideDate < tomorrow;
@@ -569,7 +602,7 @@ const ScheduledRidesScreen = () => {
     });
 
     return result;
-  }, [rides, activeTab, sortBy, filterType, myAcceptedRideId]);
+  }, [baseEligibleRides, activeTab, sortBy, filterType]);
 
   const counts = useMemo(() => {
     const today = new Date();
@@ -578,13 +611,11 @@ const ScheduledRidesScreen = () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Only count rides that are strictly SCHEDULED and NOT completed/cancelled/rejected
-    const visibleRides = rides.filter(r => {
+    const visibleRides = baseEligibleRides.filter(r => {
       const status = r.trip_status;
       if (['COMPLETED', 'CANCELLED', 'CANCEL', 'REJECTED'].includes(status)) {
         return false;
       }
-
-      if (r.booking_type !== 'SCHEDULED') return false;
 
       const isMine = r.trip_id === myAcceptedRideId;
       if (!isMine) {
@@ -605,7 +636,7 @@ const ScheduledRidesScreen = () => {
       today: todayRides.length,
       upcoming: visibleRides.length - todayRides.length,
     };
-  }, [rides, myAcceptedRideId]);
+  }, [baseEligibleRides, myAcceptedRideId]);
 
   // 📊 Dynamic counts for each filter category in the current tab
   const filterCounts = useMemo(() => {
@@ -614,13 +645,11 @@ const ScheduledRidesScreen = () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const sameTabRides = rides.filter(r => {
+    const sameTabRides = baseEligibleRides.filter(r => {
         const status = r.trip_status;
         if (['COMPLETED', 'CANCELLED', 'CANCEL', 'REJECTED'].includes(status)) {
           return false;
         }
-
-        if (r.booking_type !== 'SCHEDULED') return false;
 
         const isMine = r.trip_id === myAcceptedRideId;
         if (!isMine) {
@@ -649,7 +678,7 @@ const ScheduledRidesScreen = () => {
         round_trip: getCount('round_trip'),
         high_value: getCount('high_value'),
     };
-  }, [rides, activeTab, myAcceptedRideId]);
+  }, [baseEligibleRides, activeTab, myAcceptedRideId]);
 
   // Pulse count badge when numbers change
   useEffect(() => {
@@ -1100,6 +1129,7 @@ const ScheduledRidesScreen = () => {
       style={[styles.container, { backgroundColor: isDark ? theme.colors.background : '#FFFFFF' }]}
       edges={['top']}
     >
+      <AppStatusBar />
       {/* OFFLINE BANNERS */}
       {!isConnected ? (
         <View style={[styles.offlineBanner, { backgroundColor: '#EF4444' }]}>

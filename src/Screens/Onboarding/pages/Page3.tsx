@@ -9,8 +9,11 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { hS, vS, mS } from '../../../lib/scale';
+import { useTranslation } from 'react-i18next';
 
 const Page3 = () => {
+  const { t } = useTranslation();
+
   return (
     <ScrollView
       style={styles.container}
@@ -35,16 +38,19 @@ const Page3 = () => {
         <Animated.Text
           entering={FadeInDown.duration(600).delay(200)}
           style={styles.title}
+          adjustsFontSizeToFit
+          numberOfLines={1}
         >
-          Recharge & Subscription Plans
+          {t('ob_recharge_plans')}
         </Animated.Text>
 
         <Animated.Text
           entering={FadeInDown.duration(600).delay(300)}
           style={styles.desc}
+          adjustsFontSizeToFit
+          numberOfLines={3}
         >
-          Choose flexible daily or weekly plans. No hidden charges. Full
-          transparency for better earnings.
+          {t('ob_recharge_plans_desc')}
         </Animated.Text>
 
         <Animated.View
@@ -53,14 +59,14 @@ const Page3 = () => {
         >
           <View style={styles.card}>
             <MCIcon name="calendar-today" size={mS(20)} color="#64B5F6" />
-            <Text style={styles.cardTitle}>Daily Plans</Text>
-            <Text style={styles.cardSub}>Flexible daily options</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_daily_plans')}</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_flexible_options')}</Text>
           </View>
 
           <View style={styles.card}>
             <MCIcon name="shield-check" size={mS(20)} color="#64B5F6" />
-            <Text style={styles.cardTitle}>No Hidden Fees</Text>
-            <Text style={styles.cardSub}>Full transparency</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_no_hidden_fees')}</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_full_transparency')}</Text>
           </View>
 
           <View style={styles.card}>
@@ -69,16 +75,24 @@ const Page3 = () => {
               size={mS(20)}
               color="#64B5F6"
             />
-            <Text style={styles.cardTitle}>Easy Payment</Text>
-            <Text style={styles.cardSub}>Multiple methods</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_easy_payment')}</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_multiple_methods')}</Text>
           </View>
 
           <View style={styles.card}>
             <MCIcon name="autorenew" size={mS(20)} color="#64B5F6" />
-            <Text style={styles.cardTitle}>Auto-Renewal</Text>
-            <Text style={styles.cardSub}>Never miss a day</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_auto_renewal')}</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_never_miss_day')}</Text>
           </View>
         </Animated.View>
+
+        {/* FOOTER TEXT */}
+        <Animated.Text
+          entering={FadeInDown.duration(600).delay(500)}
+          style={styles.footerText}
+        >
+          {t('recharge_footer')}
+        </Animated.Text>
       </View>
     </ScrollView>
   );
@@ -115,7 +129,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: mS(22),
+    fontSize: mS(18),
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
@@ -124,27 +138,28 @@ const styles = StyleSheet.create({
 
   desc: {
     textAlign: 'center',
-    fontSize: mS(14),
+    fontSize: mS(12),
     color: '#4B5563',
-    marginTop: vS(2),
-    lineHeight: mS(20),
+    marginTop: vS(8),
+    lineHeight: mS(18),
   },
 
+  /* GRID */
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: vS(20),
+    marginTop: vS(12),
   },
 
   card: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    borderRadius: mS(14),
+    borderRadius: mS(12),
     alignItems: 'center',
-    paddingVertical: vS(3),
-    marginBottom: vS(8),
+    paddingVertical: vS(4),
+    marginBottom: vS(14),
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -155,17 +170,26 @@ const styles = StyleSheet.create({
   },
 
   cardTitle: {
-    marginTop: vS(6),
-    fontSize: mS(13),
+    marginTop: vS(4),
+    fontSize: mS(12),
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
   },
 
   cardSub: {
+    fontSize: mS(9),
+    color: '#6B7280',
+    marginTop: vS(1),
+    textAlign: 'center',
+  },
+  footerText: {
     fontSize: mS(11),
     color: '#6B7280',
-    marginTop: vS(2),
     textAlign: 'center',
+    marginTop: vS(2),
+    paddingHorizontal: hS(10),
+    lineHeight: mS(16),
+    fontStyle: 'italic',
   },
 });

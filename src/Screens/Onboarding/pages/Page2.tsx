@@ -10,8 +10,11 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { hS, vS, mS } from '../../../lib/scale';
+import { useTranslation } from 'react-i18next';
 
 const Page2 = () => {
+  const { t } = useTranslation();
+
   return (
     <ScrollView
       style={styles.container}
@@ -35,17 +38,20 @@ const Page2 = () => {
       <Animated.Text
         entering={FadeInDown.duration(600).delay(200)}
         style={styles.title}
+        adjustsFontSizeToFit
+        numberOfLines={1}
       >
-        How the App Helps You
+        {t('ob_how_app_helps')}
       </Animated.Text>
 
       {/* DESCRIPTION */}
       <Animated.Text
         entering={FadeInDown.duration(600).delay(300)}
         style={styles.desc}
+        adjustsFontSizeToFit
+        numberOfLines={3}
       >
-        Accept rides instantly, track trips, view earnings, and manage your daily
-        bookings in one smart dashboard.
+        {t('ob_how_app_helps_desc')}
       </Animated.Text>
 
       {/* FEATURES */}
@@ -55,28 +61,36 @@ const Page2 = () => {
       >
         <View style={styles.card}>
           <Icon name="check-circle" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.cardTitle}>Accept Rides</Text>
-          <Text style={styles.cardSub}>Instant ride requests</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_accept_rides')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_instant_requests')}</Text>
         </View>
 
         <View style={styles.card}>
           <Icon name="trending-up" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.cardTitle}>Track Trips</Text>
-          <Text style={styles.cardSub}>Live trip monitoring</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_track_trips')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_live_monitoring')}</Text>
         </View>
 
         <View style={styles.card}>
           <MCIcon name="cash" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.cardTitle}>View Earnings</Text>
-          <Text style={styles.cardSub}>Daily & weekly income</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_view_earnings')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_daily_weekly')}</Text>
         </View>
 
         <View style={styles.card}>
           <MCIcon name="calendar-check" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.cardTitle}>Manage Bookings</Text>
-          <Text style={styles.cardSub}>All rides in one place</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardTitle}>{t('ob_manage_bookings')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardSub}>{t('ob_all_rides_one')}</Text>
         </View>
       </Animated.View>
+
+      {/* FOOTER TEXT */}
+      <Animated.Text
+        entering={FadeInDown.duration(600).delay(500)}
+        style={styles.footerText}
+      >
+        {t('app_helps_footer')}
+      </Animated.Text>
     </ScrollView>
   );
 };
@@ -107,7 +121,7 @@ const styles = StyleSheet.create({
 
   /* TEXT */
   title: {
-    fontSize: mS(22),
+    fontSize: mS(18),
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
@@ -116,10 +130,10 @@ const styles = StyleSheet.create({
 
   desc: {
     textAlign: 'center',
-    fontSize: mS(14),
+    fontSize: mS(12),
     color: '#4B5563',
-    marginTop: vS(2),
-    lineHeight: mS(20),
+    marginTop: vS(12),
+    lineHeight: mS(18),
   },
 
   /* GRID */
@@ -128,7 +142,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: vS(10),
+    marginTop: vS(14),
   },
 
   card: {
@@ -136,8 +150,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: mS(14),
     alignItems: 'center',
-    paddingVertical: vS(2),
-    marginBottom: vS(6),
+    paddingVertical: vS(6),
+    marginBottom: vS(16),
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -149,16 +163,25 @@ const styles = StyleSheet.create({
 
   cardTitle: {
     marginTop: vS(2),
-    fontSize: mS(13),
+    fontSize: mS(12),
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
   },
 
   cardSub: {
+    fontSize: mS(9),
+    color: '#6B7280',
+    marginTop: vS(1),
+    textAlign: 'center',
+  },
+  footerText: {
     fontSize: mS(11),
     color: '#6B7280',
-    marginTop: vS(2),
     textAlign: 'center',
+    marginTop: vS(8),
+    paddingHorizontal: hS(10),
+    lineHeight: mS(16),
+    fontStyle: 'italic',
   },
 });

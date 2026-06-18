@@ -1,41 +1,58 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Pressable, Animated } from 'react-native';
+import { View, StyleSheet, Pressable, Animated, Image } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { Text } from '../../../Components';
 import { hS as s, vS as vs, ms } from '../../../lib/scale';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { getLanguageScaledSize } from '../../../utils/languageSizings';
+import { resolveImageUrl } from '../../../utils/imageUtils';
 
 interface Props {
     isOnline: boolean;
     driverName: string;
-    currentAddress: string;
     rating?: number;
+    totalTrips?: number;
+    profileImage?: string;
     onSettingsPress: () => void;
+    onProfilePress: () => void;
     subscription?: any;
 }
 
 const DashboardProfileHeader: React.FC<Props> = ({
     isOnline,
     driverName,
-    currentAddress,
     rating = 0,
+    totalTrips = 0,
+    profileImage,
     onSettingsPress,
+    onProfilePress,
     subscription,
 }) => {
     const { theme, isDark } = useAppTheme();
     const { t } = useTranslation();
+    const [imgError, setImgError] = React.useState(false);
+
+    // Reset error when image URL changes
+    React.useEffect(() => {
+        setImgError(false);
+    }, [profileImage]);
+
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
     // ── Plan Tag Logic ──
-    const planName = subscription?.plan?.name || subscription?.plan?.plan_name || '';
+    const planName = subscription?.plan?.name || subscription?.plan?.plan_name || subscription?.plan_name || '';
     const lowerName = planName.toLowerCase();
     const tierId = lowerName.includes('elite') ? 'elite' :
-                  lowerName.includes('premium') ? 'premium' :
-                  lowerName.includes('gold') ? 'premium' : 'basic';
+        lowerName.includes('premium') ? 'premium' :
+            lowerName.includes('gold') ? 'premium' :
+                lowerName.includes('free') ? 'basic' :
+                    (subscription?.status === 'active' || subscription?.platform_subscription_id) ? 'basic' : 'basic';
 
-    const PLAN_TAGS: any = {
+    // 🛡️ Extra fallback: If we have an active subscription but no plan name, default to basic
+    const finalTierId = (subscription?.status === 'active' && !tierId) ? 'basic' : tierId;
+
+    const TIERS: any = {
         basic: {
             label: t('basic'),
             color: isDark ? '#60A5FA' : '#2563EB',
@@ -56,7 +73,7 @@ const DashboardProfileHeader: React.FC<Props> = ({
         },
     };
 
-    const currentTier = PLAN_TAGS[tierId] || PLAN_TAGS.basic;
+    const currentTier = TIERS[finalTierId] || TIERS.basic;
 
     // ── Greeting based on time ──
     const getGreeting = () => {
@@ -87,13 +104,22 @@ const DashboardProfileHeader: React.FC<Props> = ({
 
     return (
         <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: isDark ? '#374151' : '#E2E8F0' }]}>
-            <View style={styles.profileLeft}>
+            <Pressable style={styles.profileLeft} onPress={onProfilePress}>
                 <View style={styles.avatarWrapper}>
                     {isOnline && (
                         <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]} />
                     )}
                     <View style={[styles.avatarPlaceholder, isDark && { backgroundColor: '#1E293B' }]}>
-                        <Ionicons name="person-outline" size={s(28)} color={isDark ? '#6B7280' : '#9CA3AF'} />
+                        <Text style={[styles.avatarInitials, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
+                            {driverName ? driverName.charAt(0).toUpperCase() : 'D'}
+                        </Text>
+                        {profileImage && profileImage.trim() !== '' && !imgError && (
+                            <Image
+                                source={{ uri: resolveImageUrl(profileImage) }}
+                                style={[styles.avatarImage, { position: 'absolute', top: 0, left: 0 }]}
+                                onError={() => setImgError(true)}
+                            />
+                        )}
                     </View>
                     <View style={[styles.statusDot, { backgroundColor: isOnline ? '#22C55E' : '#9CA3AF' }]} />
                 </View>
@@ -104,27 +130,19 @@ const DashboardProfileHeader: React.FC<Props> = ({
                     </Text>
                     <View style={styles.metaRow}>
                         <Ionicons name="star" size={ms(16)} color="#F59E0B" />
-                        <Text style={[styles.rating, { color: isDark ? '#FFFFFF' : '#1E293B' }]}>{rating ? rating.toFixed(1) : '0.0'}</Text>
-                        
+                        <Text style={[styles.rating, { color: isDark ? '#FFFFFF' : '#1E293B' }]}>
+                            {Number(rating || 0).toFixed(1)}
+                            <Text style={[styles.tripsCount, { color: isDark ? '#94A3B8' : '#64748B' }]}> ({totalTrips})</Text>
+                        </Text>
+
                         <View style={[styles.badge, { marginLeft: s(10), backgroundColor: currentTier.bg }]}>
                             <Ionicons name={currentTier.icon} size={ms(12)} color={currentTier.color} style={{ marginRight: s(4) }} />
                             <Text style={[styles.badgeText, { color: currentTier.color }]}>{currentTier.label}</Text>
                         </View>
                     </View>
-                    <View style={styles.statusRow}>
-                        <Text style={styles.statusLabel} numberOfLines={1}>
-                            {isOnline && currentAddress ? (
-                                <>
-                                    <Ionicons name="location-sharp" size={ms(12)} color={isDark ? '#60A5FA' : '#2563EB'} />
-                                    <Text style={[styles.addressText, isDark && { color: '#60A5FA' }]}> {currentAddress}</Text>
-                                </>
-                            ) : (
-                                t(isOnline ? 'waiting_location' : 'you_are_offline')
-                            )}
-                        </Text>
-                    </View>
+
                 </View>
-            </View>
+            </Pressable>
 
             <Pressable style={[styles.settingsBtn, { backgroundColor: isDark ? '#1E293B' : '#EEF2F7' }]} onPress={onSettingsPress}>
                 <Ionicons name="options-outline" size={s(24)} color={isDark ? '#FFFFFF' : '#1E293B'} />
@@ -165,6 +183,16 @@ const styles = StyleSheet.create({
         backgroundColor: '#EEF2F7',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    avatarInitials: {
+        fontSize: s(22),
+        fontWeight: '800',
+        color: '#0F172A',
+    },
+    avatarImage: {
+        width: s(54),
+        height: s(54),
+        borderRadius: ms(27),
     },
     pulseRing: {
         position: 'absolute',
@@ -215,6 +243,11 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#1E293B',
     },
+    tripsCount: {
+        fontSize: getLanguageScaledSize(13),
+        fontWeight: '400',
+        color: '#64748B',
+    },
     dot: {
         marginHorizontal: s(6),
         color: '#94A3B8',
@@ -232,22 +265,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#D97706',
     },
-    statusRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: vs(4),
-    },
-    miniDot: {
-        width: s(8),
-        height: s(8),
-        borderRadius: ms(4),
-        marginRight: s(6),
-    },
-    statusLabel: {
-        fontSize: getLanguageScaledSize(12),
-        color: '#64748B',
-        fontWeight: '500',
-    },
+
     settingsBtn: {
         padding: ms(10),
         backgroundColor: '#EEF2F7',

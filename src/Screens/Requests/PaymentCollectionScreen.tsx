@@ -5,7 +5,7 @@ import {
     Text,
     StyleSheet,
     Pressable,
-    StatusBar,
+    // StatusBar removed — using AppStatusBar
     Alert,
     ScrollView,
     Dimensions,
@@ -13,6 +13,7 @@ import {
     BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppStatusBar from '../../Components/AppStatusBar';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
@@ -38,6 +39,7 @@ import { useCompleteTripMutation } from '../../service/driverApi';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../redux/store';
 import { clearAcceptedRide } from '../../redux/rideSlice';
+import { checkPhotoLibraryPermission, goToSettings } from '../../utils/permissionUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -146,13 +148,25 @@ const PaymentCollectionScreen = ({ route, navigation }: any) => {
         return `${hrs}h ${m > 0 ? `${m}m` : ''}`;
     };
 
-    const handleOpenGallery = () => {
+    const handleOpenGallery = async () => {
+        const hasPermission = await checkPhotoLibraryPermission();
+        if (!hasPermission) {
+            showAlert({
+                title: t('gallery_permission') || 'Gallery Required',
+                message: t('gallery_permission_msg') || 'Please enable gallery access to pick a QR code.',
+                confirmText: t('go_to_settings') || 'Settings',
+                onConfirm: () => goToSettings(),
+                cancelText: t('cancel') || 'Cancel',
+            });
+            return;
+        }
+
         ImagePicker.openPicker({
             width: 400,
             height: 400,
             cropping: false,
             includeBase64: true,
-        }).then(image => {
+        }).then((image: any) => {
             console.log('[PaymentCollection] Image picked from gallery:', image.path);
         }).catch(err => {
             if (err.message !== 'User cancelled image selection') {
@@ -218,7 +232,7 @@ const PaymentCollectionScreen = ({ route, navigation }: any) => {
     if (isFinished) {
         return (
             <View style={[styles.successContainer, { backgroundColor: '#f8f9fa' }]}>
-                <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+                <AppStatusBar forceDark />
                 
                 <Animated.View entering={FadeIn.delay(200)} style={styles.successContent}>
                     <View style={[styles.checkBadge, { backgroundColor: theme.colors.success || '#34a853', shadowColor: theme.colors.success }]}>
@@ -256,7 +270,7 @@ const PaymentCollectionScreen = ({ route, navigation }: any) => {
 
     return (
         <View style={[styles.container, { backgroundColor: '#f8f9fa' }]}>
-            <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+            <AppStatusBar forceDark />
 
 
             <SafeAreaView style={styles.safeArea}>

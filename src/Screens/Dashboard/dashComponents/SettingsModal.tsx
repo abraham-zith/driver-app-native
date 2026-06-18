@@ -8,7 +8,10 @@ import {
     Pressable,
     TouchableOpacity,
     Alert,
+    Platform,
+    Linking,
 } from 'react-native';
+import notifee from '@notifee/react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { vS as vs, mS as ms } from '../../../lib/scale';
@@ -62,6 +65,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
     const isOutstationEnabled = isSubscribed('OUTSTATION');
     const isRoundTripEnabled = isSubscribed('ROUND-TRIP');
     const isOneWayEnabled = isSubscribed('ONE-WAY');
+
+    const [isBatteryOptimized, setIsBatteryOptimized] = React.useState(false);
+
+    React.useEffect(() => {
+        if (visible && Platform.OS === 'android') {
+            const checkOpt = async () => {
+                try {
+                    const optimized = await notifee.isBatteryOptimizationEnabled();
+                    setIsBatteryOptimized(optimized);
+                } catch (e) {
+                    console.log('Battery check failed', e);
+                }
+            };
+            checkOpt();
+        }
+    }, [visible]);
 
     // Ensure Local is always true if it somehow became false
     React.useEffect(() => {
@@ -139,6 +158,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
                         </View>
                     )}
 
+                    {isBatteryOptimized && Platform.OS === 'android' && (
+                        <View style={[styles.batteryCard, isDark && { backgroundColor: '#450a0a', borderLeftColor: '#ef4444' }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(8) }}>
+                                <Ionicons name="battery-dead" size={ms(24)} color="#EF4444" />
+                                <View style={{ marginLeft: ms(8) }}>
+                                    <Text style={[styles.batteryTitle, isDark && { color: '#FECACA' }]}>Background Priority</Text>
+                                    <Text style={[styles.batterySub, isDark && { color: '#FCA5A5' }]}>App may reload in background</Text>
+                                </View>
+                            </View>
+                            <Text style={[styles.batteryText, isDark && { color: '#FEE2E2' }]}>
+                                To receive ride requests reliably, please change the battery setting for vDrive to "Unrestricted" or "Don't Optimize".
+                            </Text>
+                            <TouchableOpacity
+                                style={styles.batteryBtn}
+                                onPress={() => {
+                                    if (Platform.OS === 'android') {
+                                        Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS').catch(() => {
+                                            Linking.openSettings();
+                                        });
+                                    }
+                                }}
+                            >
+                                <Text style={styles.batteryBtnText}>Fix Now</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     <TouchableOpacity
                         style={styles.saveBtn}
                         onPress={onClose}
@@ -207,6 +253,41 @@ const styles = StyleSheet.create({
         fontSize: 9,
         fontWeight: '700',
         color: '#92400E',
+    },
+    batteryCard: {
+        backgroundColor: '#FEF2F2',
+        padding: ms(16),
+        borderRadius: ms(12),
+        borderLeftWidth: 4,
+        borderLeftColor: '#EF4444',
+        marginBottom: vs(16),
+        marginTop: vs(16),
+    },
+    batteryTitle: {
+        fontSize: ms(15),
+        fontWeight: '700',
+        color: '#991B1B',
+    },
+    batterySub: {
+        fontSize: ms(12),
+        color: '#B91C1C',
+    },
+    batteryText: {
+        fontSize: ms(13),
+        color: '#7F1D1D',
+        marginBottom: vs(12),
+        lineHeight: ms(18),
+    },
+    batteryBtn: {
+        backgroundColor: '#EF4444',
+        paddingVertical: vs(10),
+        borderRadius: ms(8),
+        alignItems: 'center',
+    },
+    batteryBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: ms(14),
     },
     saveBtn: {
         backgroundColor: '#2563EB',

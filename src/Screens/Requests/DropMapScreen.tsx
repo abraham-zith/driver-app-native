@@ -622,7 +622,7 @@ const DropMapScreen = ({ route }: any) => {
     navigation.navigate(ChatScreen_Nav, {
       rideId: trip_id,
       userId: user?.driverId,
-      userName: ride.passenger || t('rider'),
+      userName: ride.passenger || ride.passenger_details?.name || ride.passenger_name || ride.customer?.name || t('rider'),
       userImage: ride.passenger_details?.image || ride.riderImage,
       userPhone: ride.phone || ride.riderPhone || ride.customer?.phone || ride.passenger_phone,
     });
@@ -673,7 +673,7 @@ const DropMapScreen = ({ route }: any) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
+      <StatusBar animated={false} barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
       <MapConnectionStatus />
 
       <MapView

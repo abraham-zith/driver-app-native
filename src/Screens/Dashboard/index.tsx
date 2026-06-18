@@ -14,10 +14,11 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 import { calculateAverageRating } from '../../utils/ratingUtils';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, NavigationProp, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
@@ -31,14 +32,14 @@ import { useRideFeed, RideItem } from '../../hooks/useRideFeed';
 import { useDashboardMap } from '../../hooks/useDashboardMap';
 import { useLocationTracker } from '../../hooks/useLocationTracker';
 import { useGetMySubscriptionQuery } from '../../service/userApi';
-import { 
-  useGetEarningsSummaryQuery as useGetDriverEarningsSummaryQuery, 
-  useGetWalletBalanceQuery, 
-  useGetEarningsTransactionsQuery, 
+import {
+  useGetEarningsSummaryQuery as useGetDriverEarningsSummaryQuery,
+  useGetWalletBalanceQuery,
+  useGetEarningsTransactionsQuery,
   useGetRideActivityQuery,
   useGetDriverPerformanceQuery,
-  useGoOnlineMutation, 
-  useGoOfflineMutation, 
+  useGoOnlineMutation,
+  useGoOfflineMutation,
   useAcceptTripMutation,
   useArrivingTripMutation,
   useGetTodayOverviewQuery,
@@ -53,6 +54,8 @@ import TodayOverview from './dashComponents/TodayOverview';
 import RechargeCard from './dashComponents/SubscriptionCard';
 import SettingsModal from './dashComponents/SettingsModal';
 import RideAlertCard from './dashComponents/RideAlertCard';
+import AssignedRideCard from './dashComponents/AssignedRideCard';
+import { TripStatus } from '../../types/trip';
 import SwipeButton from './dashComponents/SwipeButton';
 import DashboardSkeleton from './dashComponents/DashboardSkeleton';
 import RecentActivity from './dashComponents/RecentActivity';
@@ -63,6 +66,7 @@ import ConfirmationModal from '../../Components/ConfirmationModal';
 import { parseOnlineTimeToSeconds, formatOnlineTime } from '../../utils/timeUtils';
 import socketService from '../../service/socketService';
 import RatingReceivedModal from '../../Components/RatingReceivedModal';
+import AppStatusBar from '../../Components/AppStatusBar';
 import { setLastTripRating } from '../../redux/rideSlice';
 import axiosInstance from '../../api/axiosInstance';
 // Use RideItem from the hook
@@ -76,6 +80,7 @@ import axiosInstance from '../../api/axiosInstance';
 const DriverDashboard = () => {
   const navigation = useNavigation<NavigationProp<any>>();
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const user = useSelector((state: RootState) => state.userSlice?.user);
@@ -83,6 +88,19 @@ const DriverDashboard = () => {
   const myAcceptedRideId = useSelector((state: RootState) => state.ride?.myAcceptedRideId);
   const isOnline = !!user?.isOnline;
   const dispatch = useDispatch();
+
+  // ── VERIFICATION GUARD ──
+  // Redirect unapproved drivers back to DocumentScreen
+  const APPROVED_STATUSES = ['DOCUMENTS_APPROVED', 'DOCUMENTS_VERIFIED', 'SUBSCRIPTION_ACTIVE', 'ACTIVE'];
+  useEffect(() => {
+    const status = user?.onboarding_status;
+    if (user && status && !APPROVED_STATUSES.includes(status)) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'DocumentScreen' }],
+      });
+    }
+  }, [user?.onboarding_status]);
 
   const [goOnline] = useGoOnlineMutation();
   const [goOffline] = useGoOfflineMutation();
@@ -114,7 +132,7 @@ const DriverDashboard = () => {
     { driverId: user?.driverId || '', period: 'today' },
     { skip: !user?.driverId }
   );
-  
+
   const { data: todayOverviewResult, refetch: refetchTodayOverview } = useGetTodayOverviewQuery(user?.driverId || '', { skip: !user?.driverId });
   const todayOverview = todayOverviewResult?.data;
 
@@ -139,7 +157,7 @@ const DriverDashboard = () => {
 
   // 🕒 Scheduled Rides for Countdown Widget
   const { data: scheduledTripsResult, refetch: refetchScheduled } = useGetIncomingTripsQuery('SCHEDULED', {
-    pollingInterval: 30000, 
+    pollingInterval: 30000,
   });
 
   const extractArray = useCallback((result: any) => {
@@ -154,27 +172,27 @@ const DriverDashboard = () => {
     const trips = extractArray(scheduledTripsResult);
     if (!trips.length) return null;
 
-    const myAcceptedRides = trips.filter((t: any) => 
+    const myAcceptedRides = trips.filter((t: any) =>
       (t.trip_id === myAcceptedRideId || t.id === myAcceptedRideId) &&
       (t.status === 'ACCEPTED' || t.trip_status === 'ACCEPTED' || t.status === 'ARRIVING' || t.trip_status === 'ARRIVING')
     );
-    
+
     if (!myAcceptedRides.length) return null;
 
     // Map and Sort to find the soonest one
     const mapped = myAcceptedRides.map((tripData: any) => {
-        const timeVal = tripData.scheduled_start_time || tripData.startTime || new Date().toISOString();
-        return {
-            ...tripData,
-            trip_id: tripData.trip_id || tripData.id,
-            scheduled_start_time: timeVal,
-            startTime: new Date(timeVal).getTime(),
-            customer: {
-              name: tripData.passenger_name || tripData.customer?.name || 'Customer',
-              ratingGiven: tripData.rating || tripData.user_rating || tripData.trip_rating || undefined,
-              comment: tripData.feedback || tripData.comment || tripData.user_feedback || '',
-            },
-        };
+      const timeVal = tripData.scheduled_start_time || tripData.startTime || new Date().toISOString();
+      return {
+        ...tripData,
+        trip_id: tripData.trip_id || tripData.id,
+        scheduled_start_time: timeVal,
+        startTime: new Date(timeVal).getTime(),
+        customer: {
+          name: tripData.user_details?.full_name || tripData.user_details?.first_name || tripData.passenger_details?.name || tripData.passenger_name || tripData.customer?.name || 'Customer',
+          ratingGiven: tripData.rating || tripData.user_rating || tripData.trip_rating || undefined,
+          comment: tripData.feedback || tripData.comment || tripData.user_feedback || '',
+        },
+      };
     });
 
     mapped.sort((a: any, b: any) => a.startTime - b.startTime);
@@ -191,7 +209,7 @@ const DriverDashboard = () => {
   }, 0);
   const computedCancellations = todayOverview?.cancellations !== undefined ? todayOverview.cancellations : todayRides.filter((ride: any) => ride.status === 'Cancelled' || ride.trip_status === 'CANCELLED').length;
   const computedCompletedRides = todayOverview?.tripsCompleted !== undefined ? todayOverview.tripsCompleted : todayRides.filter((ride: any) => ride.status === 'Completed' || ride.trip_status === 'COMPLETED').length;
-  
+
   // Format online time from performance (assume it's in hours for now, as seen in performance screen)
   const onlineHoursFromBackend = todayOverview?.onlineMinutes !== undefined ? todayOverview.onlineMinutes / 60 : (todayPerformanceResult?.data?.onlineHours || 0);
   const onlineSecondsFromBackend = todayOverview?.onlineMinutes !== undefined ? todayOverview.onlineMinutes * 60 : Math.floor(onlineHoursFromBackend * 3600);
@@ -219,6 +237,7 @@ const DriverDashboard = () => {
   const lastTripRating = useSelector((state: RootState) => state.ride.lastTripRating);
 
   const [sosContactsCount, setSosContactsCount] = useState<number | null>(null);
+  const [isSosDismissed, setIsSosDismissed] = useState(false);
 
   // ── Alert Modal State ──
   const [alertModalVisible, setAlertModalVisible] = useState(false);
@@ -228,14 +247,20 @@ const DriverDashboard = () => {
     icon: 'information-circle-outline',
     isDestructive: false,
     singleButton: true,
+    confirmText: undefined as string | undefined,
+    cancelText: undefined as string | undefined,
     onConfirm: () => setAlertModalVisible(false),
+    onCancel: () => setAlertModalVisible(false),
   });
 
-  const showAlert = useCallback((title: string, message: string, options?: { 
-    icon?: string, 
-    isDestructive?: boolean, 
+  const showAlert = useCallback((title: string, message: string, options?: {
+    icon?: string,
+    isDestructive?: boolean,
     singleButton?: boolean,
-    onConfirm?: () => void 
+    confirmText?: string,
+    cancelText?: string,
+    onConfirm?: () => void,
+    onCancel?: () => void
   }) => {
     setAlertModalConfig({
       title,
@@ -243,7 +268,10 @@ const DriverDashboard = () => {
       icon: options?.icon || 'information-circle-outline',
       isDestructive: options?.isDestructive || false,
       singleButton: options?.singleButton !== undefined ? options.singleButton : true,
+      confirmText: options?.confirmText,
+      cancelText: options?.cancelText,
       onConfirm: options?.onConfirm || (() => setAlertModalVisible(false)),
+      onCancel: options?.onCancel || (() => setAlertModalVisible(false)),
     });
     setAlertModalVisible(true);
   }, []);
@@ -284,6 +312,9 @@ const DriverDashboard = () => {
   useFocusEffect(
     useCallback(() => {
       if (!user?.driverId) return;
+
+
+
       const checkSosContacts = async () => {
         try {
           const response = await axiosInstance.get('/sos/contacts');
@@ -293,6 +324,7 @@ const DriverDashboard = () => {
         } catch (error) {
         }
       };
+
       checkSosContacts();
     }, [user?.driverId])
   );
@@ -356,9 +388,9 @@ const DriverDashboard = () => {
     if (allHistoryResult?.data && user?.driverId) {
       const rides = extractArray(allHistoryResult.data);
       const newRating = calculateAverageRating(rides);
-      
+
       if (newRating !== null) {
-        
+
         // Update only if if it's significant or different
         if (Math.abs((user.rating || 0) - newRating) > 0.001) {
           updateDriver({
@@ -366,8 +398,8 @@ const DriverDashboard = () => {
             data: { rating: newRating }
           }).unwrap()
             .then(() => {
-              // Optionally dispatch update to Redux if invalidatesTags doesn't do it automatically for current user state
-              dispatch(setUser({ ...user, rating: newRating }));
+              // Only update the rating in Redux to avoid stale overwrites
+              dispatch(setUser({ rating: newRating }));
             })
             .catch(err => {
               console.error('[RatingCalc] Failed to update driver rating:', err);
@@ -381,9 +413,9 @@ const DriverDashboard = () => {
     if (!isOnline || !user?.driverId) return;
 
     const handleRating = (tripData: any) => {
-      dispatch(setLastTripRating({ 
-        rating: tripData.rating || tripData.user_rating || tripData.trip_rating, 
-        feedback: tripData.feedback || tripData.comment || tripData.user_feedback || '' 
+      dispatch(setLastTripRating({
+        rating: tripData.rating || tripData.user_rating || tripData.trip_rating,
+        feedback: tripData.feedback || tripData.comment || tripData.user_feedback || ''
       }));
       setRatingModalVisible(true);
     };
@@ -440,6 +472,27 @@ const DriverDashboard = () => {
     setRefreshing(false);
   }, [refetchSub, refetchEarnings, refetchWallet, refetchRecentActivity, refetchTodayRides, refetchPerformance, refetchTodayOverview, refetchScheduled]);
 
+  const displayRating = useMemo(() => {
+    if (allHistoryResult?.data) {
+      const rides = extractArray(allHistoryResult.data);
+      const newRating = calculateAverageRating(rides);
+      if (newRating !== null) return newRating;
+    }
+    return user?.rating || 0;
+  }, [allHistoryResult?.data, user?.rating, extractArray]);
+
+  const displayTotalTrips = useMemo(() => {
+    if (allHistoryResult?.data) {
+      const rides = extractArray(allHistoryResult.data);
+      const completedRides = rides.filter((ride: any) => 
+        ride.status?.toUpperCase() === 'COMPLETED' || 
+        ride.trip_status?.toUpperCase() === 'COMPLETED'
+      );
+      if (completedRides.length > 0) return completedRides.length;
+    }
+    return user?.total_trips || 0;
+  }, [allHistoryResult?.data, user?.total_trips, extractArray]);
+
   const route = [] as { latitude: number; longitude: number }[];
 
   const driverName = user?.full_name || t('driver');
@@ -448,14 +501,17 @@ const DriverDashboard = () => {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
+      {isFocused && <AppStatusBar />}
       <View style={{ zIndex: 100 }}>
         {/* ── FIXED HEADER ── */}
         <DashboardProfileHeader
           isOnline={isOnline}
           driverName={driverName}
-          currentAddress={currentAddress}
-          rating={user?.rating}
+          rating={displayRating}
+          totalTrips={displayTotalTrips}
+          profileImage={user?.profile_picture}
           onSettingsPress={() => setSettingsVisible(true)}
+          onProfilePress={() => navigation.navigate('Profile')}
           subscription={subData?.data?.subscription}
         />
 
@@ -471,45 +527,12 @@ const DriverDashboard = () => {
 
       {/* ── FLOATING BANNERS CONTAINER ── */}
       <View style={{ position: 'absolute', top: vs(110) + insets.top, left: 0, right: 0, zIndex: 95, paddingHorizontal: s(16), gap: vs(10) }}>
-        {/* ── SOS WARNING BANNER ── */}
-        {sosContactsCount === 0 && (
-          <Animated.View 
-            entering={FadeInDown.duration(600)}
-            style={[
-              styles.sosBanner, 
-              { 
-                position: 'relative', left: 0, right: 0, top: 0, // override absolute
-                backgroundColor: isDark ? '#450a0a' : '#FEF2F2', 
-                borderColor: isDark ? '#ef4444' : '#FCA5A5',
-              }
-            ]}
-          >
-            <TouchableOpacity 
-              style={styles.sosBannerTouchable}
-              onPress={() => navigation.navigate('SosContactsScreen')}
-            >
-              <View style={styles.sosBannerIcon}>
-                <Ionicons name="shield-checkmark" size={ms(24)} color={isDark ? '#ef4444' : '#DC2626'} />
-              </View>
-              <View style={styles.sosBannerContent}>
-                <Text style={[styles.sosBannerTitle, { color: isDark ? '#fecaca' : '#991B1B' }]}>
-                  {t('sos_banner_title') || 'Your safety matters!'}
-                </Text>
-                <Text style={[styles.sosBannerDesc, { color: isDark ? '#fca5a5' : '#DC2626' }]}>
-                  {t('sos_banner_desc') || 'Please add at least one SOS Trusted Contact.'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={ms(20)} color={isDark ? '#fca5a5' : '#DC2626'} />
-            </TouchableOpacity>
-          </Animated.View>
-        )}
-
         {/* ── LOCATION ERROR BANNER ── */}
         {locationError && isOnline && (
-          <Animated.View 
+          <Animated.View
             entering={FadeInDown.duration(600)}
             style={[
-              styles.errorBanner, 
+              styles.errorBanner,
               { position: 'relative', marginHorizontal: 0, marginTop: 0, marginBottom: 0, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
               isDark && { backgroundColor: '#450a0a', borderLeftColor: '#ef4444' }
             ]}
@@ -535,9 +558,42 @@ const DriverDashboard = () => {
         {/* ── MAP ── */}
         <DashboardMap
           userLocation={userLocation}
+          currentAddress={currentAddress}
           isOnline={isOnline}
           routeCoordinates={route}
         />
+
+        {/* ── SOS SAFETY TOOLKIT CARD ── */}
+        {sosContactsCount !== null && sosContactsCount < 3 && !isSosDismissed && (
+          <Animated.View entering={FadeInDown.duration(600)} style={[styles.inlineSosCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+            <View style={styles.sosCardHeader}>
+              <View style={styles.sosCardLeft}>
+                <View style={styles.sosCardIconRing}>
+                  <Ionicons name="shield-checkmark" size={ms(26)} color={theme.colors.primary} />
+                </View>
+                <View style={styles.sosCardTextGroup}>
+                  <Text style={[styles.sosCardTitle, { color: theme.colors.text }]}>Safety Toolkit</Text>
+                  <Text style={[styles.sosCardSubtitle, isDark && { color: '#94A3B8' }]}>{sosContactsCount}/3 Recommended Contacts</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setIsSosDismissed(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: ms(10), color: isDark ? '#94A3B8' : '#64748B', fontWeight: '500' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sosCardActionRow}>
+              <Text style={[styles.sosCardActionText, isDark && { color: '#CBD5E1' }]}>Add trusted contacts for emergency alerts.</Text>
+              <TouchableOpacity
+                style={[styles.sosCardButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => navigation.navigate('SosContactsScreen')}
+              >
+                <Text style={styles.sosCardButtonText}>Setup Now</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+
 
         {/* ── TODAY'S OVERVIEW ── */}
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('todays_overview')}</Text>
@@ -579,30 +635,51 @@ const DriverDashboard = () => {
       {
         rideQueue.length > 0 && (
           <View style={styles.rideOverlay}>
-            <ScrollView 
+            <ScrollView
               style={{ width: '100%' }}
               contentContainerStyle={styles.rideScrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {rideQueue.map((item, index) => (
-                <RideAlertCard
-                  key={item.id || `ride-${index}`}
-                  item={item}
-                  onAccept={async () => {
-                    try {
-                      await acceptTripApi({ tripId: item.trip_id.toString(), driverId: user?.driverId || '' }).unwrap();
-                      setAcceptedRide(item);
-                      acceptRide(item.id);
-                      dispatch(setDriverStatus(item.booking_type === 'SCHEDULED' ? 'HAS_UPCOMING_SCHEDULED' : 'ON_TRIP'));
-                      refetchScheduled();
-                      setShowConfirmModal(true);
-                    } catch (e: any) {
-                      showAlert('Cannot Accept Ride', e?.data?.message || 'Failed to accept trip.', { icon: 'close-circle-outline', isDestructive: true });
-                    }
-                  }}
-                  onReject={() => rejectRide(item.id)}
-                />
-              ))}
+              {rideQueue.map((item, index) => {
+                const onAccept = async () => {
+                  try {
+                    await acceptTripApi({ tripId: item.trip_id.toString(), driverId: user?.driverId || '' }).unwrap();
+                    setAcceptedRide(item);
+                    acceptRide(item.id);
+                    dispatch(setDriverStatus(item.booking_type === 'SCHEDULED' ? 'HAS_UPCOMING_SCHEDULED' : 'ON_TRIP'));
+                    refetchScheduled();
+                    setShowConfirmModal(true);
+                  } catch (e: any) {
+                    showAlert('Cannot Accept Ride', e?.data?.message || 'Failed to accept trip.', { icon: 'close-circle-outline', isDestructive: true });
+                  }
+                };
+
+                const isAssigned = item.trip_status?.toString().toUpperCase() === 'ASSIGNED' ||
+                  item.trip_status?.toString().toUpperCase() === 'TRIP_ASSIGNED' ||
+                  item.trip_status?.toString().toUpperCase() === 'ASSIGNED_RIDE';
+
+                console.log(`[Dashboard] Rendering Ride: ${item.id} | Status: ${item.trip_status} | isAssigned: ${isAssigned}`);
+
+                if (isAssigned) {
+                  return (
+                    <AssignedRideCard
+                      key={item.id || `ride-${index}`}
+                      item={item}
+                      onAccept={onAccept}
+                      onReject={() => rejectRide(item.id)}
+                    />
+                  );
+                }
+
+                return (
+                  <RideAlertCard
+                    key={item.id || `ride-${index}`}
+                    item={item}
+                    onAccept={onAccept}
+                    onReject={() => rejectRide(item.id)}
+                  />
+                );
+              })}
             </ScrollView>
           </View>
         )
@@ -617,7 +694,7 @@ const DriverDashboard = () => {
                 onPress={() => setShowOfflineSwipe(false)}
                 style={{ position: 'absolute', right: s(16), top: vs(12), zIndex: 1100 }}
               >
-                <Ionicons name="close" size={ms(24)} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Text style={{ fontSize: ms(14), color: isDark ? '#94A3B8' : '#64748B', fontWeight: '500' }}>Close</Text>
               </TouchableOpacity>
             )}
             <Text style={[styles.swipeTitle, { color: theme.colors.text }]}>
@@ -664,19 +741,60 @@ const DriverDashboard = () => {
                     return;
                   }
 
-                  try {
-                    const res = await goOnline(currentDriverId).unwrap();
-                    dispatch(setOnlineStatus(true));
-                    if (res?.upcomingRide) {
-                      showAlert('Upcoming Ride', `You have a scheduled ride starting soon at ${res.upcomingRide.pickup_address}`, { icon: 'calendar-outline' });
+                  const proceedToOnline = async () => {
+                    try {
+                      const res = await goOnline(currentDriverId).unwrap();
+                      dispatch(setOnlineStatus(true));
+                      if (res?.upcomingRide) {
+                        showAlert('Upcoming Ride', `You have a scheduled ride starting soon at ${res.upcomingRide.pickup_address}`, { icon: 'calendar-outline' });
+                      }
+                    } catch (e: any) {
+                      showAlert('Error', e?.data?.message || 'Failed to go online', { icon: 'alert-circle-outline', isDestructive: true });
                     }
-                  } catch (e: any) {
-                    showAlert('Error', e?.data?.message || 'Failed to go online', { icon: 'alert-circle-outline', isDestructive: true });
                     setShowOfflineSwipe(false);
+                  };
+
+                  if (Platform.OS === 'android') {
+                    try {
+                      const notifee = (await import('@notifee/react-native')).default;
+                      const isOptimized = await notifee.isBatteryOptimizationEnabled();
+                      if (isOptimized) {
+                        showAlert(
+                          'Background Priority',
+                          `To receive ride requests reliably, please change the battery setting for vDrive to "Unrestricted" or "Don't Optimize".`,
+                          {
+                            icon: 'battery-dead',
+                            singleButton: false,
+                            confirmText: 'Fix Now',
+                            cancelText: 'Skip',
+                            onConfirm: () => {
+                              Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS').catch(() => {
+                                Linking.openSettings();
+                              });
+                              setAlertModalVisible(false);
+                              setShowOfflineSwipe(false);
+                            },
+                            onCancel: () => {
+                              proceedToOnline();
+                            }
+                          }
+                        );
+                        return;
+                      }
+                    } catch (e) {
+                      console.log('Battery check failed', e);
+                    }
                   }
+
+                  proceedToOnline();
                 } else {
                   // 🛡️ Safety: Prevent going offline if on an active ride
-                  if (currentRide) {
+                  const isActiveTrip = currentRide && (
+                    currentRide.booking_type === 'LIVE' ||
+                    ['ARRIVING', 'ARRIVED', 'LIVE', 'ON_TRIP', 'DESTINATION_REACHED'].includes(currentRide.trip_status)
+                  );
+
+                  if (isActiveTrip) {
                     showAlert(
                       t('cannot_go_offline') || 'Cannot Go Offline',
                       t('complete_current_trip') || 'Please complete your current trip before going offline.',
@@ -691,11 +809,11 @@ const DriverDashboard = () => {
                     dispatch(setOnlineStatus(false));
                   } catch (e: any) {
                     console.error('[Dashboard] Go Offline Error:', e);
-                    
+
                     // Extract specific error message if available from RTK Query / Backend
-                    const errorMessage = 
-                      e?.data?.message || 
-                      e?.message || 
+                    const errorMessage =
+                      e?.data?.message ||
+                      e?.message ||
                       (typeof e?.data === 'string' ? e.data : null) ||
                       t('failed_to_go_offline') || 'Failed to go offline';
 
@@ -738,8 +856,8 @@ const DriverDashboard = () => {
               {acceptedRide?.booking_type === 'SCHEDULED' ? t('ride_scheduled', 'Ride Scheduled!') : t('ride_accepted', 'Ride Accepted!')}
             </Text>
             <Text style={[styles.confirmModalSub, isDark && { color: '#94A3B8' }]}>
-              {acceptedRide?.booking_type === 'SCHEDULED' 
-                ? t('scheduled_success_msg', 'You can find this ride in your upcoming list.') 
+              {acceptedRide?.booking_type === 'SCHEDULED'
+                ? t('scheduled_success_msg', 'You can find this ride in your upcoming list.')
                 : t('navigating_to_pickup', 'Navigating to pickup location...')}
             </Text>
 
@@ -750,14 +868,14 @@ const DriverDashboard = () => {
                   showAlert(t('error'), t('go_online_start'), { icon: 'alert-circle-outline', isDestructive: true });
                   return;
                 }
-                
+
                 try {
                   const isScheduled = acceptedRide?.booking_type === 'SCHEDULED';
-                  
+
                   if (acceptedRide && !isScheduled) {
                     // 1. Transition status to ARRIVING for live rides
                     await arrivingTrip(acceptedRide.trip_id).unwrap();
-                    
+
                     // 2. Hide modal and navigate
                     setShowConfirmModal(false);
                     navigation.navigate('PickupMapScreen', { ride: acceptedRide });
@@ -785,13 +903,18 @@ const DriverDashboard = () => {
 
       <ConfirmationModal
         isVisible={alertModalVisible}
-        onClose={() => setAlertModalVisible(false)}
+        onClose={() => {
+          setAlertModalVisible(false);
+          if (alertModalConfig.onCancel) alertModalConfig.onCancel();
+        }}
         onConfirm={alertModalConfig.onConfirm}
         title={alertModalConfig.title}
         message={alertModalConfig.message}
         icon={alertModalConfig.icon}
         isDestructive={alertModalConfig.isDestructive}
         singleButton={alertModalConfig.singleButton}
+        confirmText={alertModalConfig.confirmText}
+        cancelText={alertModalConfig.cancelText}
       />
 
       <RatingReceivedModal
@@ -859,9 +982,8 @@ const styles = StyleSheet.create({
   rideScrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: vs(50),
-    paddingHorizontal: s(20),
+    paddingHorizontal: s(8),
   },
   swipeBox: {
     position: 'absolute',
@@ -955,44 +1077,74 @@ const styles = StyleSheet.create({
     fontSize: ms(16),
     fontWeight: '700',
   },
-  sosBanner: {
-    position: 'absolute',
-    left: s(16),
-    right: s(16),
-    zIndex: 1000,
-    borderRadius: ms(20),
-    borderWidth: 1.5,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 10,
-    overflow: 'hidden',
+  inlineSosCard: {
+    marginHorizontal: s(16),
+    marginTop: vs(16),
+    borderRadius: ms(16),
+    padding: s(16),
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.1)',
   },
-  sosBannerTouchable: {
+  sosCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  sosCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: s(16),
+    flex: 1,
   },
-  sosBannerIcon: {
-    width: s(40),
-    height: s(40),
-    borderRadius: ms(20),
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  sosCardIconRing: {
+    width: ms(44),
+    height: ms(44),
+    borderRadius: ms(22),
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: s(12),
   },
-  sosBannerContent: {
+  sosCardTextGroup: {
     flex: 1,
   },
-  sosBannerTitle: {
-    fontSize: ms(15),
-    fontWeight: '800',
+  sosCardTitle: {
+    fontSize: ms(16),
+    fontWeight: '700',
     marginBottom: vs(2),
   },
-  sosBannerDesc: {
+  sosCardSubtitle: {
     fontSize: ms(13),
+    color: '#64748B',
     fontWeight: '500',
+  },
+  sosCardActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: vs(16),
+  },
+  sosCardActionText: {
+    flex: 1,
+    fontSize: ms(13),
+    color: '#475569',
+    marginRight: s(12),
+    lineHeight: ms(18),
+  },
+  sosCardButton: {
+    paddingVertical: vs(8),
+    paddingHorizontal: s(16),
+    borderRadius: ms(20),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosCardButtonText: {
+    color: '#fff',
+    fontSize: ms(13),
+    fontWeight: '700',
   },
 });

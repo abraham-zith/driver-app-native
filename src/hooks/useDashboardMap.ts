@@ -60,39 +60,59 @@ export const useDashboardMap = ({ isOnline }: UseDashboardMapProps) => {
                 setUserLocation({ latitude, longitude, heading });
                 updateAddress(latitude, longitude);
                 setLocationError(null);
+
+                // 2. ONLY start watching after successfully getting initial position
+                // (which confirms permission was granted)
+                watchId.current = watchLocation(
+                    (watchPos: Geolocation.GeoPosition) => {
+                        if (!isMounted.current) return;
+                        const { latitude: lat, longitude: lng, heading: head } = watchPos.coords;
+                        setUserLocation((prev) => {
+                            const latDiff = prev ? Math.abs(prev.latitude - lat) : 1;
+                            const lngDiff = prev ? Math.abs(prev.longitude - lng) : 1;
+                            if (latDiff > 0.0005 || lngDiff > 0.0005) {
+                                updateAddress(lat, lng);
+                            }
+                            return { latitude: lat, longitude: lng, heading: head };
+                        });
+                    },
+                    (error: Geolocation.GeoError) => {
+                        console.log('Dashboard Watch Error:', error);
+                        setLocationError(error.message || 'Lost location signal');
+                    }
+                );
             })
             .catch((err: any) => {
                 console.log('Initial Location Error:', err);
                 setLocationError(err.message || 'Failed to fetch location');
             });
-
-        watchId.current = watchLocation(
-            (pos: Geolocation.GeoPosition) => {
-                if (!isMounted.current) return;
-                const { latitude, longitude, heading } = pos.coords;
-                setUserLocation((prev) => {
-                    const latDiff = prev ? Math.abs(prev.latitude - latitude) : 1;
-                    const lngDiff = prev ? Math.abs(prev.longitude - longitude) : 1;
-                    if (latDiff > 0.0005 || lngDiff > 0.0005) {
-                        updateAddress(latitude, longitude);
-                    }
-                    return { latitude, longitude, heading };
-                });
-            },
-            (error: Geolocation.GeoError) => {
-                console.log('Dashboard Watch Error:', error);
-                setLocationError(error.message || 'Lost location signal');
-            }
-        );
     }, [getCurrentLocation, watchLocation, updateAddress, stopLocationUpdates]);
+
+    // Always fetch initial location on mount (so map is contextual even offline)
+    useEffect(() => {
+        if (!userLocation) {
+            getCurrentLocation()
+                .then((pos: Geolocation.GeoPosition) => {
+                    if (!isMounted.current) return;
+                    const { latitude, longitude, heading } = pos.coords;
+                    setUserLocation({ latitude, longitude, heading });
+                    updateAddress(latitude, longitude);
+                })
+                .catch(() => {
+                    // Silent — no location available yet
+                });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         if (isOnline) {
             startLocationUpdates();
         } else {
             stopLocationUpdates();
-            // Do not reset to a specific city when offline
-            // setUserLocation(null); // Optional: keep last known location or set to null
+            // Retain last known location — do NOT reset to null
+            // This keeps the map showing the driver's last position (dimmed) when offline
+            setLocationError(null);
         }
         return () => stopLocationUpdates();
     }, [isOnline, startLocationUpdates, stopLocationUpdates]);

@@ -1,6 +1,5 @@
 export const Auth_Nav = 'AuthNavigation';
 
-export const LanguageScreen_Nav = 'LanguageScreen';
 export const WelcomeScreen_Nav = 'WelcomeScreen';
 export const OTPScreen_Nav = 'OTPScreen';
 
@@ -13,6 +12,7 @@ export const OnboardingSos_Nav = 'OnboardingSosScreen';
 export const DocumentScreen_Nav = 'DocumentScreen';
 export const DocumentUploadScreen_Nav = 'DocumentUploadScreen';
 export const CaptureSelfie_Nav = 'CaptureSelfie';
+export const SmartSelfieScreen_Nav = 'SmartSelfieScreen';
 /* ❌ REMOVED
 export const DocumentVerificationStatus_Nav = "DocumentVerificationStatus";
 */
@@ -48,4 +48,6 @@ export const EmergencySupport_Nav = 'EmergencySupportScreen';
 export const LegalAgreements_Nav = 'LegalAgreementsScreen';
 export const NavigationScreen_Nav = 'NavigationScreen'; 
 export const ChatScreen_Nav = 'ChatScreen'; 
+export const Blocked_Nav = 'BlockedScreen'; 
+export const ReferEarn_Nav = 'ReferEarnScreen';
 

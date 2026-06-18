@@ -25,7 +25,7 @@ export const useAuthBootstrap = () => {
     useEffect(() => {
         const timer = setTimeout(() => {
             if (mountedRef.current) { setMinTimeElapsed(true); }
-        }, 2500);
+        }, 500);
 
         // 🛡️ Safety fallback: Force unlock after 10s if the API hangs
         const maxTimer = setTimeout(() => {
@@ -94,7 +94,17 @@ export const useAuthBootstrap = () => {
     }, [reduxToken]);
 
     // Profile rehydration logic
-    const driverIdFromRedux = useSelector((state: RootState) => state.userSlice.user?.driverId);
+    const user = useSelector((state: RootState) => state.userSlice.user);
+    const driverIdFromRedux = user?.driverId;
+    const existingLanguage = user?.language;
+    
+    // 🛡️ Track current language in a Ref to avoid dependency loops in profile effects
+    const languageRef = useRef(existingLanguage);
+    useEffect(() => {
+        if (existingLanguage) {
+            languageRef.current = existingLanguage;
+        }
+    }, [existingLanguage]);
 
     // 🛡️ Log only once per mount/change to reduce console noise
     useEffect(() => {
@@ -115,11 +125,38 @@ export const useAuthBootstrap = () => {
     const normalizeProfile = (raw: any): Record<string, any> => {
         if (!raw) return {};
 
+        const resolveImageUrl = (img: any): string | undefined => {
+            if (!img) return undefined;
+            if (typeof img === 'string') {
+                const trimmed = img.trim();
+                if (trimmed === '' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+                    return undefined;
+                }
+                if (trimmed.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        return parsed.url || parsed.front || trimmed;
+                    } catch (e) { return trimmed; }
+                }
+                return trimmed;
+            }
+            if (typeof img === 'object') {
+                return img.url || img.front || undefined;
+            }
+            return undefined;
+        };
+
         // 1. Resolve driver_id
         const driver_id = raw.driverId || raw.driver_id || raw.id || activeDriverId;
 
-        // 2. Resolve Profile Picture
-        const profile_picture = raw.profilePicUrl || raw.profile_picture || raw.profileImage || '';
+        // 2. Resolve Profile Picture (check all possible variants)
+        let profile_picture = resolveImageUrl(
+            raw.profile_picture || 
+            raw.profile_pic_url || 
+            raw.profilePicUrl || 
+            raw.profileImage || 
+            raw.avatar
+        );
 
         // 3. Resolve Availability (isOnline / driverStatus)
         const isOnline = 
@@ -139,33 +176,63 @@ export const useAuthBootstrap = () => {
             pincode: raw.address?.pincode || '',
         };
 
+        // 5. Resolve Documents (Convert array to Record for easy UI access)
+        const documents: Record<string, any> = {};
+        if (Array.isArray(raw.documents)) {
+            raw.documents.forEach((doc: any) => {
+                const type = doc.document_type || doc.documentType;
+                if (type) {
+                    documents[type] = {
+                        status: doc.status || doc.license_status || doc.licenseStatus,
+                        preview: resolveImageUrl(doc.document_url || doc.documentUrl),
+                        rejection_reason: doc.rejection_reason || doc.remarks || doc.status_reason
+                    };
+                }
+            });
+        }
+
+        // Final fallback for profile_picture from documents if still missing
+        if (!profile_picture) {
+            profile_picture = 
+                documents.profile_selfie?.preview || 
+                documents.PROFILE_SELFIE?.preview ||
+                documents.Profile_Selfie?.preview || 
+                documents['Profile Selfie']?.preview ||
+                documents.profileSelfie?.preview;
+        }
+
         const normalized: Record<string, any> = {
             ...raw,
-            driverId: driver_id, // Keep driverId for local storage key logic if needed, but prioritize snake_case
+            driverId: driver_id, 
             driver_id: driver_id,
-            profile_picture,
+            profile_picture: profile_picture || raw.profile_picture || raw.profile_pic_url || raw.profilePicUrl,
+            profile_pic_url: profile_picture || raw.profile_picture || raw.profile_pic_url || raw.profilePicUrl,
             isOnline,
             driverStatus,
             address,
+            documents,
             // 🛡️ PRODUCTION-READY MAPPING: Resolve camelCase vs snake_case conflicts
             first_name: raw.first_name || raw.firstName || '',
             last_name: raw.last_name || raw.lastName || '',
-            full_name: raw.full_name || raw.fullName || '',
+            full_name: raw.full_name || raw.fullName || `${raw.first_name || ''} ${raw.last_name || ''}`.trim() || '',
             onboarding_status: raw.onboarding_status || raw.onboardingStatus || 'PHONE_VERIFIED',
             phone_number: raw.phone_number || raw.phoneNumber || '',
+            rating: raw.rating || raw.driver_rating || 0,
+            total_trips: raw.total_trips || raw.trips_count || 0,
         };
 
-        // Cleanup dangerous ID collisions and duplicate camelCase fields
-        delete normalized.id;
-        delete normalized.phoneNumber;
-        delete normalized.profilePicUrl;
-        delete normalized.profileImage;
-        delete normalized.onboardingStep;
-        delete normalized.onboardingStatus;
-        delete normalized.onboardingCompleted;
-        delete normalized.firstName;
-        delete normalized.lastName;
-        delete normalized.fullName;
+        console.log(`[AuthBootstrap] Normalized profile for ${normalized.driverId}:`, {
+            full_name: normalized.full_name,
+            profile_picture: normalized.profile_picture,
+            hasDocuments: Object.keys(normalized.documents).length > 0
+        });
+
+        // 🛡️ DEBUG LOG: Log resolved profile info
+        console.log('[AuthBootstrap] Normalized profile:', {
+            id: normalized.driverId,
+            name: normalized.full_name,
+            hasImage: !!normalized.profile_picture
+        });
         
         return normalized;
     };
@@ -184,7 +251,11 @@ export const useAuthBootstrap = () => {
             console.log('[AuthBootstrap] /auth/me normalized:', JSON.stringify(normalized));
 
             if (normalized.driverId) {
-                dispatch(setUser(normalized));
+                // 🛡️ Ensure we don't overwrite a locally selected language with a backend default during onboarding
+                dispatch(setUser({ 
+                    ...normalized, 
+                    language: languageRef.current || normalized.language 
+                }));
                 if (!driverIdFromRedux) {
                     storage.setDriverId(normalized.driverId);
                 }
@@ -197,16 +268,21 @@ export const useAuthBootstrap = () => {
 
     const { data, error, isSuccess } = useGetDriverByIdQuery(activeDriverId as string, {
         skip: !reduxToken || !activeDriverId,
+        refetchOnMountOrArgChange: true,
     });
 
     useEffect(() => {
         if (!mountedRef.current) { return; }
 
-        if (isSuccess && data?.data && !profileProcessed) {
+        if (isSuccess && data?.data) {
             const normalized = normalizeProfile(data.data);
             console.log('[AuthBootstrap] ✅ Profile normalized → driverId:', normalized.driverId, '| status:', normalized.onboarding_status);
 
-            dispatch(setUser(normalized));
+            // 🛡️ Ensure we don't overwrite a locally selected language with a backend default during onboarding
+            dispatch(setUser({ 
+                ...normalized, 
+                language: languageRef.current || normalized.language 
+            }));
 
             if (normalized.driverId) {
                 storage.setDriverId(normalized.driverId);

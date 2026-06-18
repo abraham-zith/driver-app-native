@@ -30,13 +30,16 @@ export interface UserState {
   gender?: 'male' | 'female' | 'other' | string;
   date_of_birth?: string | null;
 
-  /* Profile pic — backend sends profile_picture */
+  /* Profile pic — backend sends profile_picture or profile_pic_url */
   profile_picture?: string;
+  profile_pic_url?: string;
 
   bannerIndex?: number;
 
   role?: string;
   status?: 'active' | 'pending' | 'blocked' | string;
+  status_reason?: string;
+  status_updated_at?: string;
   rating?: number;
   total_trips?: number;
 
@@ -65,6 +68,7 @@ export interface UserState {
   onboarding_completed?: boolean;
   documents_submitted?: boolean;
   is_trip_verified?: boolean;
+  kyc_status?: any;
 
   address?: {
     street?: string;
@@ -103,6 +107,21 @@ export interface UserState {
 
   /* ⭐ DOCUMENT STORAGE */
   documents?: Record<string, DocumentState>;
+  
+  /* Referral */
+  referred_by?: string;
+  
+  /* Credit / Wallet */
+  credit?: {
+    limit: number;
+    balance: number;
+    totalRecharged: number;
+    totalUsed: number;
+    lastRechargeAt?: string | null;
+  };
+
+  /** Raw document metadata from backend */
+  documents_data?: any[];
 }
 
 /* ================= REQUEST STATUS ================= */

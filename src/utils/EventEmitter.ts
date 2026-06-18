@@ -26,4 +26,5 @@ export const globalEmitter = new GlobalEmitter();
 
 export const EVENTS = {
   TRIP_CANCELLED: 'TRIP_CANCELLED',
+  NOTIFICATION_OPENED: 'NOTIFICATION_OPENED',
 };

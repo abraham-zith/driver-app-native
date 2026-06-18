@@ -9,7 +9,7 @@ import { baseQueryWithReauth } from './baseQueryWithReauth';
 export const driverApi = createApi({
   reducerPath: 'driverApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Driver', 'Documents', 'TripVerification'],
+  tagTypes: ['Driver', 'Documents', 'TripVerification', 'Referral'],
 
   endpoints: (builder) => ({
 
@@ -110,7 +110,7 @@ export const driverApi = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Documents'],
+      invalidatesTags: ['Documents', 'Driver'],
     }),
 
     // Submit all documents for review
@@ -130,7 +130,7 @@ export const driverApi = createApi({
       selfie_url: string;
       car_images: string[];
       car_image_url?: string;
-      ride_id?: string;
+      trip_id?: string;
     }>({
       query: ({ driverId, ...body }) => ({
         url: `/drivers/trip-verification/submit/${driverId}`,
@@ -303,7 +303,7 @@ export const driverApi = createApi({
       providesTags: ['Driver'],
     }),
     getTripById: builder.query<any, string>({
-      query: (tripId) => `/trips/${tripId}`,
+      query: (tripId) => `/trips/bytripid/${tripId}`,
       providesTags: ['Driver'],
     }),
     getTodayOverview: builder.query<any, string>({
@@ -315,6 +315,26 @@ export const driverApi = createApi({
     triggerSos: builder.mutation<any, { trip_id?: string }>({
       query: (body) => ({
         url: `/sos/trigger`,
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    /* ─────────── REFERRAL (/drivers/referral) ─────────── */
+
+    getMyReferralCode: builder.query<any, void>({
+      query: () => '/drivers/referral/code',
+      providesTags: ['Referral'],
+    }),
+
+    getMyReferralStats: builder.query<any, void>({
+      query: () => '/drivers/referral/stats',
+      providesTags: ['Referral'],
+    }),
+
+    applyReferralCode: builder.mutation<any, { code: string }>({
+      query: (body) => ({
+        url: '/drivers/referral/apply',
         method: 'POST',
         body,
       }),
@@ -397,5 +417,12 @@ export const {
 
   // SOS
   useTriggerSosMutation,
+
+  // Referral
+  useGetMyReferralCodeQuery,
+  useLazyGetMyReferralCodeQuery,
+  useGetMyReferralStatsQuery,
+  useLazyGetMyReferralStatsQuery,
+  useApplyReferralCodeMutation,
 } = driverApi;
 

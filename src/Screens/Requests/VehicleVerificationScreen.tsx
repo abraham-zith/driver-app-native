@@ -35,14 +35,16 @@ import LinearGradient from 'react-native-linear-gradient';
 // import { interpolate, Extrapolate } from 'react-native-reanimated';
 
 import { useAppTheme } from '../../context/ThemeContext';
+import AppStatusBar from '../../Components/AppStatusBar';
 import { useAlert } from '../../context/AlertContext';
 import { vS as vs, mS as ms } from '../../lib/scale';
 import { RootState } from '../../redux/store';
-import { useGetDocUploadUrlMutation, useSubmitTripPhotosMutation, useGetTripVerificationStatusQuery } from '../../service/driverApi';
+import { useGetDocUploadUrlMutation, useSubmitTripPhotosMutation, useGetTripVerificationStatusQuery, useStartTripMutation } from '../../service/driverApi';
 import { documentApi } from '../../api/documentApi';
 import { clearAcceptedRide } from '../../redux/rideSlice';
 import socketService from '../../service/socketService';
 import audioService from '../../utils/audioService';
+import { checkCameraPermission, goToSettings } from '../../utils/permissionUtils';
 
 // const { width } = Dimensions.get('window');
 
@@ -81,8 +83,10 @@ const VehicleVerificationScreen = ({ route }: any) => {
   // 🛡️ Guard: Exit screen if ride is cleared from Redux (e.g. by global cancellation)
   useEffect(() => {
     if (!rideFromStore) {
-      console.log('[VehicleVerification] Active ride cleared from Redux, exiting...');
+      console.log('[VehicleVerification] ❌ Active ride cleared from Redux, exiting...');
       navigation.dispatch(StackActions.replace('DashboardScreen'));
+    } else {
+      console.log('[VehicleVerification] ✅ Active ride present in Redux. Status:', rideFromStore?.trip_status);
     }
   }, [rideFromStore, navigation]);
 
@@ -113,19 +117,13 @@ const VehicleVerificationScreen = ({ route }: any) => {
       };
     }, [navigation])
   );
-  const [vehiclePhotos, setVehiclePhotos] = useState<Record<PhotoKey, boolean>>({
-    front: false,
-    back: false,
-    left: false,
-    right: false,
+  const [vehiclePhotos, setVehiclePhotos] = useState<Record<string, boolean>>({
+    car_image: false,
   });
 
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
-  const [vehicleUris, setVehicleUris] = useState<Record<PhotoKey, string | null>>({
-    front: null,
-    back: null,
-    left: null,
-    right: null,
+  const [vehicleUris, setVehicleUris] = useState<Record<string, string | null>>({
+    car_image: null,
   });
 
   const [status, setStatus] = useState<Status>('COLLECTING');
@@ -135,12 +133,6 @@ const VehicleVerificationScreen = ({ route }: any) => {
   // API Mutations (moved below state because of 'status' dependency)
   const [getUploadUrl] = useGetDocUploadUrlMutation();
   const [submitTripPhotos] = useSubmitTripPhotosMutation();
-
-  // Polling for status if needed, but we handle it manually here
-  useGetTripVerificationStatusQuery(user?.driverId || '', {
-    skip: !user?.driverId || status !== 'VERIFYING',
-    pollingInterval: 3000,
-  });
 
   // Theme-aware colors
   const bgColor = isDark ? '#121212' : '#F9FBFE';
@@ -152,6 +144,102 @@ const VehicleVerificationScreen = ({ route }: any) => {
   const dividerColor = isDark ? '#2D2D2D' : '#E5E7EB';
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🛡️ State Recovery: Check if there's already a pending verification for this trip
+  const { data: verificationStatus, isLoading: isStatusLoading } = useGetTripVerificationStatusQuery(user?.driverId || '', {
+    skip: !user?.driverId || (status !== 'COLLECTING' && status !== 'VERIFYING'),
+    pollingInterval: status === 'VERIFYING' ? 3000 : 0, // Poll every 3s while verifying
+  });
+
+  useEffect(() => {
+    if (verificationStatus?.data && (status === 'COLLECTING' || status === 'VERIFYING')) {
+      const v = verificationStatus.data;
+      const tripIdMatch = v.trip_id === ride?.trip_id;
+      
+      if (!tripIdMatch) return;
+
+      if (v.status === 'pending') {
+        if (status === 'COLLECTING') {
+          console.log('[VehicleVerification] Recovered pending status, moving to VERIFYING');
+          setStatus('VERIFYING');
+        }
+      } else if (v.status === 'approved') {
+        console.log('[VehicleVerification] Verification approved via polling');
+        setStatus('APPROVED');
+        triggerHaptic(HapticFeedbackTypes.notificationSuccess);
+      } else if (v.status === 'rejected') {
+        console.log('[VehicleVerification] Verification rejected via polling');
+        setStatus('COLLECTING');
+        
+        const rejectedImages = [];
+        if (v.selfie_status === 'rejected') {
+          rejectedImages.push(`Selfie (${v.selfie_remarks || 'No reason provided'})`);
+          setSelfieTaken(false);
+          setSelfieUri(null);
+        }
+        if (v.car_image_status === 'rejected') {
+          rejectedImages.push(`Car Image (${v.car_image_remarks || 'No reason provided'})`);
+          setVehiclePhotos((prev) => ({ ...prev, car_image: false }));
+          setVehicleUris((prev) => ({ ...prev, car_image: null }));
+        }
+
+        if (rejectedImages.length > 0) {
+          showAlert({
+            title: t('verification_rejected'),
+            message: `${t('please_reupload')}:\n- ${rejectedImages.join('\n- ')}`,
+            singleButton: true,
+            icon: 'alert-circle-outline',
+          });
+          triggerHaptic(HapticFeedbackTypes.notificationError);
+        }
+      }
+    }
+  }, [verificationStatus, ride?.trip_id, status, t, showAlert, triggerHaptic]);
+
+  // --- SOCKET LISTENERS ---
+  useEffect(() => {
+    const handleApproved = (data: any) => {
+      console.log('[VehicleVerification] Received APPROVED socket event', data);
+      if (status === 'VERIFYING') {
+        setStatus('APPROVED');
+        triggerHaptic(HapticFeedbackTypes.notificationSuccess);
+      }
+    };
+
+    const handleRejected = (data: any) => {
+      console.log('[VehicleVerification] Received REJECTED socket event', data);
+      if (status === 'VERIFYING') {
+        setStatus('COLLECTING');
+        const rejectedImages = [];
+        if (data.selfie_status === 'rejected') {
+          rejectedImages.push(`Selfie (${data.selfie_remarks})`);
+          setSelfieTaken(false);
+          setSelfieUri(null);
+        }
+        if (data.car_image_status === 'rejected') {
+          rejectedImages.push(`Car Image (${data.car_image_remarks})`);
+          setVehiclePhotos((prev) => ({ ...prev, car_image: false }));
+          setVehicleUris((prev) => ({ ...prev, car_image: null }));
+        }
+
+        showAlert({
+          title: t('verification_rejected'),
+          message: `${t('please_reupload')}:\n- ${rejectedImages.join('\n- ')}`,
+          singleButton: true,
+          icon: 'alert-circle-outline',
+        });
+        triggerHaptic(HapticFeedbackTypes.notificationError);
+      }
+    };
+
+    socketService.onTripVerificationApproved(handleApproved);
+    socketService.onTripVerificationRejected(handleRejected);
+
+    return () => {
+      socketService.offTripVerificationApproved(handleApproved);
+      socketService.offTripVerificationRejected(handleRejected);
+    };
+  }, [status, t, showAlert, triggerHaptic]);
 
   /* ================= TIMER ================= */
 
@@ -185,8 +273,8 @@ const VehicleVerificationScreen = ({ route }: any) => {
 
   /* ================= HELPERS ================= */
 
-  const vehicleCount = Object.values(vehiclePhotos).filter(Boolean).length;
-  const totalSteps = 5;
+  const vehicleCount = vehiclePhotos.car_image ? 1 : 0;
+  const totalSteps = 2; // Selfie + 1 Car Image
   const completedSteps = (selfieTaken ? 1 : 0) + vehicleCount;
   const donePercent = Math.round((completedSteps / totalSteps) * 100);
   const canSubmit = completedSteps === totalSteps && status === 'COLLECTING';
@@ -203,13 +291,27 @@ const VehicleVerificationScreen = ({ route }: any) => {
       });
       return;
     }
+
+    // --- PERMISSION CHECK ---
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) {
+      showAlert({
+        title: t('camera_permission') || 'Camera Required',
+        message: t('camera_permission_msg') || 'Please enable camera access to capture your selfie.',
+        confirmText: t('go_to_settings') || 'Settings',
+        onConfirm: () => goToSettings(),
+        cancelText: t('cancel') || 'Cancel',
+      });
+      return;
+    }
+
     try {
       const image = await ImagePicker.openCamera({
         width: 1200,
         height: 1200,
         cropping: true,
         useFrontCamera: true,
-      });
+      }) as any;
 
       setSelfieTaken(true);
       setSelfieUri(image.path);
@@ -219,7 +321,7 @@ const VehicleVerificationScreen = ({ route }: any) => {
     }
   };
 
-  const captureVehicle = async (key: PhotoKey) => {
+  const captureVehicle = async (key: string) => {
     if (!selfieTaken) return;
     if (!ImagePicker) {
       showAlert({
@@ -230,12 +332,26 @@ const VehicleVerificationScreen = ({ route }: any) => {
       });
       return;
     }
+
+    // --- PERMISSION CHECK ---
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) {
+      showAlert({
+        title: t('camera_permission') || 'Camera Required',
+        message: t('camera_permission_msg') || 'Please enable camera access to capture vehicle photos.',
+        confirmText: t('go_to_settings') || 'Settings',
+        onConfirm: () => goToSettings(),
+        cancelText: t('cancel') || 'Cancel',
+      });
+      return;
+    }
+
     try {
       const image = await ImagePicker.openCamera({
         width: 1200,
         height: 1200,
         cropping: true,
-      });
+      }) as any;
 
       setVehiclePhotos(prev => ({ ...prev, [key]: true }));
       setVehicleUris(prev => ({ ...prev, [key]: image.path }));
@@ -256,13 +372,13 @@ const VehicleVerificationScreen = ({ route }: any) => {
         contentType: 'image/jpeg',
       }).unwrap();
 
-      const { uploadUrl, url } = response;
+      const { uploadUrl, fileUrl } = response.data;
 
       // 2. Upload to S3
       await documentApi.uploadToS3(uploadUrl, uri, 'image/jpeg');
       console.log(`[VehicleVerification] Successfully uploaded ${type} to S3`);
 
-      return url;
+      return fileUrl;
     } catch (error) {
       console.error(`Upload failed for ${type}:`, error);
       throw error;
@@ -282,7 +398,7 @@ const VehicleVerificationScreen = ({ route }: any) => {
     if (!canSubmit) {
       const missing = [];
       if (!selfieTaken) missing.push('Driver Selfie');
-      if (vehicleCount < 4) missing.push(`${4 - vehicleCount} more vehicle photos`);
+      if (vehicleCount < 1) missing.push(`Car Image`);
       showAlert({
         title: t('common.incomplete'),
         message: `${t('complete_all_steps')}\n- ${missing.join('\n- ')}`,
@@ -300,31 +416,23 @@ const VehicleVerificationScreen = ({ route }: any) => {
       // 1. Upload Selfie
       const selfieS3Url = await uploadFile(selfieUri!, 'trip_selfie');
 
-      // 2. Upload Vehicle Photos
-      const carImages: string[] = [];
-      for (const [key, uri] of Object.entries(vehicleUris)) {
-        if (uri) {
-          const s3Url = await uploadFile(uri, `vehicle_${key}`);
-          carImages.push(s3Url);
-        }
+      // 2. Upload Vehicle Photo
+      let carImageS3Url = '';
+      if (vehicleUris.car_image) {
+          carImageS3Url = await uploadFile(vehicleUris.car_image, `vehicle_car_image`);
       }
 
       // 3. Submit to backend
       await submitTripPhotos({
         driverId: user.driverId,
         selfie_url: selfieS3Url,
-        car_images: carImages,
-        ride_id: ride?.trip_id,
+        car_image_url: carImageS3Url, // Use granular string parameter
+        car_images: [], // Deprecated fallback
+        trip_id: ride?.trip_id,
       }).unwrap();
       console.log('[VehicleVerification] Submission to backend successful');
 
-      // The polling will handle the screen transition or we can wait a bit
-      // For UX, we give a small delay
-      setTimeout(() => {
-        console.log('[VehicleVerification] Transitioning to APPROVED state');
-        setStatus('APPROVED');
-        triggerHaptic(HapticFeedbackTypes.notificationSuccess);
-      }, 2000);
+      console.log('[VehicleVerification] Submission to backend successful, waiting for admin approval via socket');
 
     } catch (error) {
       console.error('Final submission failed:', error);
@@ -338,7 +446,7 @@ const VehicleVerificationScreen = ({ route }: any) => {
     }
   };
 
-  const startTripAction = () => {
+  const startTripAction = async () => {
     navigation.replace('DropMapScreen', { ride });
   };
 
@@ -362,6 +470,13 @@ const VehicleVerificationScreen = ({ route }: any) => {
   }));
 
   /* ================= RENDER ================= */
+  if (isStatusLoading) {
+    return (
+      <View style={[styles.safe, { backgroundColor: bgColor, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+      </View>
+    );
+  }
 
   if (status === 'VERIFYING') {
     return (
@@ -393,6 +508,7 @@ const VehicleVerificationScreen = ({ route }: any) => {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bgColor }]} edges={['top']}>
+      <AppStatusBar />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(100).springify()}>
           <Header
@@ -484,8 +600,8 @@ const VehicleVerificationScreen = ({ route }: any) => {
               {/* STEP 2: VEHICLE PHOTOS */}
               <Animated.View style={[styles.stepSection, { backgroundColor: cardBg, borderColor: borderColorTheme }, selfieTaken && vehicleCount < 4 && styles.stepActive, selfieTaken && vehicleCount < 4 && glowStyle]}>
                 <View style={styles.stepHeader}>
-                  <View style={[styles.stepNumber, { backgroundColor: borderColorTheme }, vehicleCount === 4 && { backgroundColor: SCREENSHOT_GREEN }]}>
-                    {vehicleCount === 4 ? (
+                  <View style={[styles.stepNumber, { backgroundColor: borderColorTheme }, vehicleCount === 1 && { backgroundColor: SCREENSHOT_GREEN }]}>
+                    {vehicleCount === 1 ? (
                       <Ionicons name="checkmark" size={ms(16)} color="#FFF" />
                     ) : (
                       <Text style={[styles.stepNumberText, { color: textPrimary }]}>2</Text>
@@ -494,10 +610,10 @@ const VehicleVerificationScreen = ({ route }: any) => {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('vehicle_photos')}</Text>
                     <Text style={[styles.stepSubtitle, { color: textSecondary }]}>
-                      {selfieTaken ? t('vehicle_angles_progress', { count: vehicleCount }) : t('complete_selfie_first')}
+                      {selfieTaken ? t('Live car photo') : t('complete_selfie_first')}
                     </Text>
                   </View>
-                  {vehicleCount === 4 && (
+                  {vehicleCount === 1 && (
                     <View style={[styles.donePillBadge, { backgroundColor: borderColorTheme }]}>
                       <Ionicons name="checkmark" size={ms(12)} color={SCREENSHOT_GREEN} />
                       <Text style={styles.donePillText}>Done</Text>
@@ -517,39 +633,9 @@ const VehicleVerificationScreen = ({ route }: any) => {
                         label={t('front_view')}
                         icon="car-connected"
                         lib="MCI"
-                        success={vehiclePhotos.front}
-                        photoUri={vehicleUris.front}
-                        onPress={() => captureVehicle('front')}
-                        isDark={isDark}
-                      />
-                      <PhotoItem
-                        label={t('back_view')}
-                        icon="car-back"
-                        lib="MCI"
-                        success={vehiclePhotos.back}
-                        photoUri={vehicleUris.back}
-                        onPress={() => captureVehicle('back')}
-                        isDark={isDark}
-                      />
-                    </View>
-                    <View style={styles.gridRow}>
-                      <PhotoItem
-                        label={t('left_side')}
-                        icon="car-side"
-                        lib="MCI"
-                        success={vehiclePhotos.left}
-                        photoUri={vehicleUris.left}
-                        onPress={() => captureVehicle('left')}
-                        isDark={isDark}
-                      />
-                      <PhotoItem
-                        label={t('right_side')}
-                        icon="car-side"
-                        lib="MCI"
-                        scaleX={-1}
-                        success={vehiclePhotos.right}
-                        photoUri={vehicleUris.right}
-                        onPress={() => captureVehicle('right')}
+                        success={vehiclePhotos.car_image}
+                        photoUri={vehicleUris.car_image}
+                        onPress={() => captureVehicle('car_image')}
                         isDark={isDark}
                       />
                     </View>
@@ -655,19 +741,6 @@ const Header = ({ cardBg, textPrimary, textSecondary, donePercent, completedStep
       </View>
     </View>
 
-    {/* SKIP BUTTON FOR TESTING */}
-    <TouchableOpacity 
-      style={{ alignSelf: 'center', marginTop: 5, padding: 5 }}
-      onPress={() => {
-        console.log('⏩ Skipping Vehicle Verification (Dev Mode)');
-        // Navigate directly to DropMapScreen if it exists, or just approve
-        navigation.replace('DropMapScreen', { ride });
-      }}
-    >
-      <Text style={{ color: SCREENSHOT_GREEN, fontWeight: 'bold', fontSize: ms(12), textDecorationLine: 'underline' }}>
-        SKIP PHOTO VERIFICATION (TESTING)
-      </Text>
-    </TouchableOpacity>
 
     <View style={[styles.fullProgressBarBg, { backgroundColor: borderColorTheme }]}>
       <Animated.View
@@ -678,7 +751,7 @@ const Header = ({ cardBg, textPrimary, textSecondary, donePercent, completedStep
 
     <View style={styles.progressSection}>
       <View style={styles.dotsRow}>
-        {[1, 2, 3, 4, 5].map(i => (
+        {[1, 2].map(i => (
           <View key={i} style={[styles.dot, { backgroundColor: i <= completedSteps ? SCREENSHOT_GREEN : dividerColor }]} />
         ))}
       </View>
@@ -734,7 +807,7 @@ const VerifyingView = ({ _isDark, bgColor, textPrimary, textSecondary, subBg, bo
   );
 };
 
-const VerifiedView = ({ startTripAction, _isDark, bgColor, textPrimary, textSecondary, cardBg, borderColorTheme }: any) => {
+const VerifiedView = ({ startTripAction, isDark, bgColor, textPrimary, textSecondary, cardBg, borderColorTheme }: any) => {
   const { t } = useTranslation();
   return (
     <View style={[styles.fullCenter, { backgroundColor: bgColor }]}>
@@ -749,7 +822,7 @@ const VerifiedView = ({ startTripAction, _isDark, bgColor, textPrimary, textSeco
 
       <View style={styles.summaryStatsRow}>
         <View style={[styles.statCard, { backgroundColor: cardBg, borderColor: borderColorTheme }]}>
-          <Text style={[styles.statValue, { color: textPrimary }]}>5</Text>
+          <Text style={[styles.statValue, { color: textPrimary }]}>2</Text>
           <Text style={[styles.statLabel, { color: textSecondary }]}>{t('photos_stat')}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: cardBg, borderColor: borderColorTheme }]}>
@@ -831,7 +904,7 @@ const GlassFooter = ({ isDark, submitAction, _canSubmit, status, _completedSteps
           <View style={styles.btnContentRow}>
             <Ionicons name="shield-checkmark" size={ms(20)} color={'#FFF'} style={{ marginRight: ms(10) }} />
             <Text style={[styles.submitBtnText, { color: '#FFF' }]}>
-              {t('temporary_bypass')}
+              {t('verify_and_submit')}
             </Text>
             {<Ionicons name="arrow-forward" size={ms(20)} color="#FFF" style={{ marginLeft: ms(10) }} />}
           </View>

@@ -18,6 +18,7 @@ import {
   LegalAgreements_Nav,
   DocumentScreen_Nav,
   DocumentUploadScreen_Nav,
+  SmartSelfieScreen_Nav,
   PersonalDetails_Nav,
   AddressDetails_Nav,
   ProfileDetails_Nav,
@@ -27,6 +28,8 @@ import {
   DropMapScreen_Nav,
   ChatScreen_Nav,
   ScheduledRides_Nav,
+  Blocked_Nav,
+  ReferEarn_Nav,
 } from './navigations';
 
 import { navigationRef } from './navigationRef';
@@ -55,6 +58,7 @@ import SosContactsScreen from '../Screens/Profile/SosContactsScreen';
 import ProfileSettingsScreen from '../Screens/Profile/ProfileSettingsScreen';
 import RechargePlanScreen from '../Screens/Profile/SubscriptionPlanScreen';
 import WalletScreen from '../Screens/Profile/WalletScreen';
+import ReferEarnScreen from '../Screens/Profile/ReferEarnScreen';
 
 import PickupMapScreen from '../Screens/Requests/PickupMapScreen';
 import PickupOTPScreen from '../Screens/Requests/PickupOTPScreen';
@@ -68,11 +72,13 @@ import EmergencySupportScreen from '../Screens/Profile/Support/EmergencySupportS
 import LegalAgreementsScreen from '../Screens/Profile/Support/LegalAgreementsScreen';
 import DocumentScreen from '../Screens/Auth/DocumentScreen';
 import DocumentUploadScreen from '../Screens/Auth/DocumentUploadScreen';
+import SmartSelfieScreen from '../Screens/Auth/SmartSelfieScreen';
 import PersonalDetails from '../Screens/Auth/PersonalDetails';
 import AddressDetails from '../Screens/Auth/AddressDetails';
 import VehicleVerificationScreen from '../Screens/Requests/VehicleVerificationScreen';
 import NavigationScreen from '../Screens/Navigation/NavigationScreen';
 import ChatScreen from '../Screens/Chatscreen';
+import BlockedScreen from '../Screens/Auth/BlockedScreen';
 
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../redux/store';
@@ -227,9 +233,6 @@ const RootNavigation = () => {
   // Determine initial route based on authentication and onboarding progress
   let initialRoute = Auth_Nav;
   if (isAuthenticated) {
-    // 🛡️ NAVIGATION GUARDRAILS (For New/Incomplete Users)
-    // Even if status is "ACTIVE", a missing name or address implies signup isn't finished.
-    // Profile picture is NOT checked here — it's collected during document upload.
     const hasIdentity = !!(user?.first_name?.trim() && user?.last_name?.trim());
     const hasAddress = !!(user?.address?.street?.trim() && user?.address?.city?.trim());
 
@@ -245,10 +248,13 @@ const RootNavigation = () => {
       console.log('[RootNav] Address check:', { street: !!user?.address?.street, city: !!user?.address?.city, hasAddress });
     }
 
-    // 🛡️ 1. TRIP RECOVERY (ABSOLUTE HIGHEST PRIORITY)
-    // If there's an active trip in Redux, jump straight to the correct screen, 
-    // bypassing all onboarding/dashboard checks.
-    if (currentRide) {
+    // 🛡️ 0. ACCOUNT STATUS GUARD (HIGHEST PRIORITY)
+    // If account is blocked or suspended, stay on Blocked screen
+    if (user?.status === 'blocked' || user?.status === 'suspended') {
+        initialRoute = Blocked_Nav;
+    } 
+    // 🛡️ 1. TRIP RECOVERY
+    else if (currentRide) {
       const rawStatus = (currentRide.trip_status || (currentRide as any).status || '').toUpperCase();
       const isScheduled = (currentRide as any)?.booking_type === 'SCHEDULED' || (currentRide as any)?.is_scheduled;
 
@@ -257,6 +263,8 @@ const RootNavigation = () => {
         (rawStatus === 'ACCEPTED' && !isScheduled)
       ) {
         initialRoute = PickupMapScreen_Nav;
+      } else if (rawStatus === 'VERIFICATION_PENDING') {
+        initialRoute = 'VehicleVerificationScreen';
       } else if (['LIVE', 'STARTED', 'ON_TRIP', 'DESTINATION_REACHED'].includes(rawStatus)) {
         initialRoute = DropMapScreen_Nav;
       }
@@ -318,6 +326,7 @@ const RootNavigation = () => {
           {/* -------- DOCUMENTS -------- */}
           <Stack.Screen name={DocumentScreen_Nav} component={DocumentScreen} />
           <Stack.Screen name={DocumentUploadScreen_Nav} component={DocumentUploadScreen} />
+          <Stack.Screen name={SmartSelfieScreen_Nav} component={SmartSelfieScreen} options={{ headerShown: false, presentation: 'modal' }} />
 
           {/* -------- DASHBOARD -------- */}
           <Stack.Screen name={Dashboard_Nav} component={DriverTabs} />
@@ -342,6 +351,7 @@ const RootNavigation = () => {
           <Stack.Screen name={LegalAgreements_Nav} component={LegalAgreementsScreen} />
           <Stack.Screen name="RechargePlanScreen" component={RechargePlanScreen} />
           <Stack.Screen name="WalletScreen" component={WalletScreen} />
+          <Stack.Screen name={ReferEarn_Nav} component={ReferEarnScreen} />
 
           {/* -------- TRIP FLOW -------- */}
           <Stack.Screen name={PickupMapScreen_Nav} component={PickupMapScreen} />
@@ -350,6 +360,9 @@ const RootNavigation = () => {
           <Stack.Screen name="PaymentCollectionScreen" component={PaymentCollectionScreen} />
           <Stack.Screen name="NavigationScreen" component={NavigationScreen} />
           <Stack.Screen name={ChatScreen_Nav} component={ChatScreen} />
+
+          {/* -------- ACCOUNT STATUS -------- */}
+          <Stack.Screen name={Blocked_Nav} component={BlockedScreen} options={{ gestureEnabled: false }} />
         </>
       )}
     </Stack.Navigator>

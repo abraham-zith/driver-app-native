@@ -10,8 +10,11 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { hS, vS, mS } from '../../../lib/scale';
+import { useTranslation } from 'react-i18next';
 
 const Page1 = () => {
+  const { t } = useTranslation();
+
   return (
     <ScrollView
       style={styles.container}
@@ -35,17 +38,20 @@ const Page1 = () => {
       <Animated.Text
         entering={FadeInDown.duration(600).delay(200)}
         style={styles.title}
+        adjustsFontSizeToFit
+        numberOfLines={1}
       >
-        About VDrive
+        {t('ob_about_vdrive')}
       </Animated.Text>
 
       {/* DESCRIPTION */}
       <Animated.Text
         entering={FadeInDown.duration(600).delay(300)}
         style={styles.desc}
+        adjustsFontSizeToFit
+        numberOfLines={3}
       >
-        VDrive is a technology-driven ride platform helping drivers earn safely
-        and efficiently with transparent operations.
+        {t('ob_about_vdrive_desc')}
       </Animated.Text>
 
       {/* ICON ROW */}
@@ -55,17 +61,17 @@ const Page1 = () => {
       >
         <View style={styles.iconBox}>
           <Icon name="cpu" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.iconLabel}>Tech-Driven</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.iconLabel}>{t('ob_tech_driven')}</Text>
         </View>
 
         <View style={styles.iconBox}>
           <MCIcon name="shield-check" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.iconLabel}>Safe & Secure</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.iconLabel}>{t('ob_safe_secure')}</Text>
         </View>
 
         <View style={styles.iconBox}>
           <MCIcon name="map-marker-radius" size={mS(22)} color="#64B5F6" />
-          <Text style={styles.iconLabel}>Wide Coverage</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.iconLabel}>{t('ob_wide_coverage')}</Text>
         </View>
       </Animated.View>
 
@@ -75,25 +81,33 @@ const Page1 = () => {
         style={styles.grid}
       >
         <View style={styles.card}>
-          <Text style={styles.cardValue}>10,000+</Text>
-          <Text style={styles.cardText}>Active Drivers</Text>
+          <Text style={styles.cardValue}>{t('stat_active_drivers')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardText}>{t('ob_active_drivers')}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardValue}>24/7</Text>
-          <Text style={styles.cardText}>Driver Support</Text>
+          <Text style={styles.cardValue}>{t('stat_support')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardText}>{t('ob_driver_support')}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardValue}>Daily</Text>
-          <Text style={styles.cardText}>Payouts</Text>
+          <Text style={styles.cardValue}>{t('stat_payouts')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardText}>{t('ob_payouts')}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardValue}>100%</Text>
-          <Text style={styles.cardText}>Transparency</Text>
+          <Text style={styles.cardValue}>{t('stat_transparency')}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cardText}>{t('ob_transparency')}</Text>
         </View>
       </Animated.View>
+
+      {/* FOOTER TEXT */}
+      <Animated.Text
+        entering={FadeInDown.duration(600).delay(600)}
+        style={styles.footerText}
+      >
+        {t('about_footer')}
+      </Animated.Text>
     </ScrollView>
   );
 };
@@ -119,23 +133,23 @@ const styles = StyleSheet.create({
 
   heroImage: {
     width: '100%',
-    height: vS(180),
+    height: vS(200),
   },
 
   /* TEXT */
   title: {
-    fontSize: mS(22),
+    fontSize: mS(18),
     fontWeight: '700',
     color: '#111827',
-    marginTop: vS(6),
+    marginTop: vS(8),
   },
 
   desc: {
-    marginTop: vS(6),
-    fontSize: mS(14),
+    marginTop: vS(8),
+    fontSize: mS(12),
     color: '#4B5563',
     textAlign: 'center',
-    lineHeight: mS(20),
+    lineHeight: mS(18),
   },
 
   /* ICON ROW */
@@ -143,7 +157,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: vS(8),
+    marginTop: vS(12),
   },
 
   iconBox: {
@@ -152,7 +166,7 @@ const styles = StyleSheet.create({
   },
 
   iconLabel: {
-    fontSize: mS(12),
+    fontSize: mS(10),
     marginTop: vS(2),
     color: '#6B7280',
   },
@@ -168,7 +182,7 @@ const styles = StyleSheet.create({
 
   card: {
     width: '48%',
-    height: vS(44),
+    height: vS(50),
     backgroundColor: '#FFFFFF',
     borderRadius: mS(12),
     alignItems: 'center',
@@ -184,15 +198,24 @@ const styles = StyleSheet.create({
   },
 
   cardValue: {
-    fontSize: mS(16),
+    fontSize: mS(14),
     fontWeight: '700',
     color: '#111827',
   },
 
   cardText: {
-    marginTop: vS(4),
-    fontSize: mS(11),
+    marginTop: vS(2),
+    fontSize: mS(9),
     color: '#6B7280',
     fontWeight: '600',
+  },
+  footerText: {
+    fontSize: mS(11),
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: vS(12),
+    paddingHorizontal: hS(10),
+    lineHeight: mS(16),
+    fontStyle: 'italic',
   },
 });

@@ -10,15 +10,19 @@ import {
   StatusBar,
   RefreshControl,
   ScrollView,
+  TextInput,
+  ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, useFocusEffect } from '@react-navigation/native';
+import { useTheme, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useAlert } from '../../context/AlertContext';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useTranslation } from 'react-i18next';
 import { HapticFeedbackTypes } from 'react-native-haptic-feedback';
 import RazorpayCheckout from 'react-native-razorpay';
 import LinearGradient from 'react-native-linear-gradient';
+import Clipboard from '@react-native-clipboard/clipboard';
+import Svg, { Path, Rect, G } from 'react-native-svg';
 import { useSelector } from 'react-redux';
 import { useHaptic } from '../../hooks/useHaptic';
 import { RootState } from '../../redux/store';
@@ -27,6 +31,8 @@ import {
   useVerifySubscriptionPaymentMutation,
   useGetMySubscriptionQuery,
   useGetSubscriptionPlansQuery,
+  useValidatePromoMutation,
+  useGetAvailablePromosQuery,
 } from '../../service/userApi';
 import { useAppTheme } from '../../context/ThemeContext';
 import AppStatusBar from '../../Components/AppStatusBar';
@@ -54,6 +60,7 @@ interface PlanTier {
   };
   isPopular?: boolean;
   savings?: number | null;
+  tag?: string | null;
 }
 
 type Duration = 'daily' | 'weekly' | 'monthly';
@@ -71,10 +78,10 @@ const PLAN_COLORS: Record<string, { color: string, gradient: string, icon: strin
   premium: { color: '#D97706', gradient: '#F59E0B', icon: 'trophy-outline' },
 };
 
-const DURATIONS: { key: Duration; labelKey: string }[] = [
-  { key: 'daily', labelKey: 'daily_tag' },
-  { key: 'weekly', labelKey: 'weekly_tag' },
-  { key: 'monthly', labelKey: 'monthly_tag' },
+const DURATIONS: { key: Duration; label: string }[] = [
+  { key: 'daily', label: 'Daily' },
+  { key: 'weekly', label: 'Weekly' },
+  { key: 'monthly', label: 'Monthly' },
 ];
 
 const SkeletonBox = ({ style, isDark, opacity }: { style?: any, isDark: boolean, opacity: any }) => {
@@ -108,10 +115,10 @@ const RechargeSkeleton = () => {
     <View style={styles.scrollContent}>
       <SkeletonBox style={{ height: 50, borderRadius: 14, marginBottom: 20 }} isDark={isDark} opacity={opacity} />
       <SkeletonBox style={{ height: 100, borderRadius: 20, marginBottom: 20 }} isDark={isDark} opacity={opacity} />
-      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-        <SkeletonBox style={{ flex: 1, height: 120, borderRadius: 16 }} isDark={isDark} opacity={opacity} />
-        <SkeletonBox style={{ flex: 1, height: 120, borderRadius: 16 }} isDark={isDark} opacity={opacity} />
-        <SkeletonBox style={{ flex: 1, height: 120, borderRadius: 16 }} isDark={isDark} opacity={opacity} />
+      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+        <SkeletonBox style={{ flex: 1, height: 130, borderRadius: 22 }} isDark={isDark} opacity={opacity} />
+        <SkeletonBox style={{ flex: 1, height: 130, borderRadius: 22 }} isDark={isDark} opacity={opacity} />
+        <SkeletonBox style={{ flex: 1, height: 130, borderRadius: 22 }} isDark={isDark} opacity={opacity} />
       </View>
       <SkeletonBox style={{ height: 45, borderRadius: 14, marginBottom: 20 }} isDark={isDark} opacity={opacity} />
       <SkeletonBox style={{ height: 180, borderRadius: 16, marginBottom: 16 }} isDark={isDark} opacity={opacity} />
@@ -119,10 +126,85 @@ const RechargeSkeleton = () => {
   );
 };
 
+const PromoCoupon = ({ promo, tierColor, onApply, onCopy }: { promo: any; tierColor: string; onApply: (code: string) => void; onCopy: (code: string) => void }) => {
+  const isPercentage = promo.discount_type === 'percentage';
+
+  return (
+    <View style={styles.couponOuterContainer}>
+      {/* Top Grab deal badge - Slanted Premium Tag */}
+      <View style={[styles.grabDealBadge, { backgroundColor: '#FFFFFF' }]}>
+        <Text style={[styles.grabDealText, { color: tierColor }]}>GRAB THE DEAL!</Text>
+      </View>
+
+      <Pressable
+        onPress={() => onApply(promo.code)}
+        style={({ pressed }) => [
+          styles.couponCard,
+          { backgroundColor: tierColor, opacity: pressed ? 0.9 : 1 }
+        ]}
+      >
+        {/* Scalloped edges - Left */}
+        <View style={styles.scallopedEdgeLeft}>
+          {[...Array(6)].map((_, i) => (
+            <View key={`l-${i}`} style={styles.scallopCircleSmall} />
+          ))}
+        </View>
+
+        {/* Scalloped edges - Right */}
+        <View style={styles.scallopedEdgeRight}>
+          {[...Array(6)].map((_, i) => (
+            <View key={`r-${i}`} style={styles.scallopCircleSmall} />
+          ))}
+        </View>
+
+        <View style={styles.couponContent}>
+          {/* Left Portion: Massive Value */}
+          <View style={styles.couponLeft}>
+            <Text style={styles.couponDiscountLabel}>Flat {isPercentage ? '' : 'Rs.'}</Text>
+            <Text style={[styles.couponDiscountValue, promo.discount_value > 99 && { fontSize: 36 }]}>
+              {promo.discount_value}{isPercentage ? '%' : ''}
+            </Text>
+          </View>
+
+          {/* Vertical Divider Line */}
+          <View style={styles.couponDivider} />
+
+          {/* Right Portion: OFF and Code */}
+          <View style={styles.couponRight}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <Text style={styles.couponOffText}>{promo.label || (isPercentage ? '% OFF' : 'OFF')}</Text>
+              <Pressable
+                onPress={() => onCopy(promo.code)}
+                style={styles.couponCopyIcon}
+              >
+                <Ionicons name="copy-outline" size={14} color="rgba(255,255,255,0.7)" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.couponDescription} numberOfLines={1}>
+              {promo.description || 'Limited time offer'}
+            </Text>
+
+            <View style={styles.couponCodeContainer}>
+              <Text style={styles.couponCodeHeader}>coupon: </Text>
+              <Text style={styles.couponCodeText}>{promo.code}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom Platform Label - Black Bar */}
+        <View style={styles.couponFooter}>
+          <Ionicons name="phone-portrait-outline" size={10} color="rgba(255,255,255,0.6)" style={{ marginRight: 6 }} />
+          <Text style={styles.couponFooterText}>ONLY ON VDRIVE APP</Text>
+        </View>
+      </Pressable>
+    </View>
+  );
+};
+
 const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
   const { colors } = useTheme();
   const { showAlert } = useAlert();
-  const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const user = useSelector((state: RootState) => state.userSlice?.user);
 
@@ -130,6 +212,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
   const { data: subscriptionData, isLoading: isSubLoading, refetch: refetchSub } = useGetMySubscriptionQuery();
   const [createSubscriptionOrder] = useCreateSubscriptionOrderMutation();
   const [verifySubscriptionPayment] = useVerifySubscriptionPaymentMutation();
+  const [validatePromo] = useValidatePromoMutation();
+  const { data: availablePromos } = useGetAvailablePromosQuery();
 
   const [selectedTierId, setSelectedTierId] = useState<number | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<Duration>('weekly');
@@ -137,10 +221,86 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'verifying' | 'success' | 'failed'>('idle');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Promo State
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+  const [useRewardBalance, setUseRewardBalance] = useState(false);
+
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
   const { triggerHaptic } = useHaptic();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Clear promo if plan or duration changes
+  useEffect(() => {
+    setAppliedPromoCode(null);
+    setDiscountAmount(0);
+    setUseRewardBalance(false);
+  }, [selectedTierId, selectedDuration]);
+
+  const handleApplyPromo = async (codeOverride?: string) => {
+    const codeToUse = codeOverride || promoInput;
+    if (!codeToUse.trim()) return;
+
+    setIsValidatingPromo(true);
+    triggerHaptic(HapticFeedbackTypes.impactLight);
+
+    try {
+      const result = await validatePromo({
+        code: codeToUse,
+        amount: currentPrice
+      }).unwrap();
+
+      if (result.success && result.data.isValid) {
+        setAppliedPromoCode(codeToUse);
+        setPromoInput(codeToUse);
+        setDiscountAmount(result.data.discountAmount);
+        triggerHaptic(HapticFeedbackTypes.notificationSuccess);
+      } else {
+        throw new Error(result.message || 'Invalid promo code');
+      }
+    } catch (error: any) {
+      setAppliedPromoCode(null);
+      setDiscountAmount(0);
+      triggerHaptic(HapticFeedbackTypes.notificationError);
+      showAlert({
+        title: 'Invalid Promo',
+        message: error.data?.message || error.message || 'Could not apply promo code',
+        singleButton: true,
+        icon: 'close-circle-outline'
+      });
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  };
+
+  const handleCopyPromo = (code: string) => {
+    Clipboard.setString(code);
+    triggerHaptic(HapticFeedbackTypes.impactLight);
+    showAlert({
+      title: 'Copied!',
+      message: 'Promo code copied to clipboard',
+      singleButton: true,
+      icon: 'copy-outline'
+    });
+  };
+
+  const getFeatureLabel = (key: string) => {
+    const labels: Record<string, string> = {
+      zero_commission: 'Zero Commission',
+      instant_rides: 'Instant Requests',
+      local_rides: 'Local Rides',
+      outstation_trips: 'Outstation Trips',
+      one_way_trips: 'One-Way Trips',
+      scheduled_rides: 'Scheduled Rides',
+      priority_support: '24/7 Priority Support',
+      priority_matching: 'Priority Matching',
+    };
+    return labels[key] || key.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -148,12 +308,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
     setRefreshing(false);
   }, [refetchSub]);
 
-  // Sync sub data on focus
-  useFocusEffect(
-    React.useCallback(() => {
-      refetchSub();
-    }, [refetchSub])
-  );
+  // Sync sub data on focus removed to prevent layout glitches on back navigation
 
   // Helper to map backend JSON features to translated display items
   const getDisplayFeatures = (plan: any, duration: Duration): PlanFeature[] => {
@@ -250,7 +405,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
       features: getDisplayFeatures(plan, selectedDuration),
       pricing: { daily, weekly, monthly },
       savings: savingsPercent > 0 ? savingsPercent : null,
-      isPopular: plan.is_popular || lowerName.includes('elite'),
+      isPopular: !!plan.is_popular,
+      tag: plan.tag || null,
     };
   });
 
@@ -310,6 +466,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
       const orderResponse = await createSubscriptionOrder({
         plan_id: selectedTierId,
         billing_cycle: getBillingCycle(selectedDuration),
+        promo_code: appliedPromoCode || undefined,
+        use_reward_balance: useRewardBalance,
       }).unwrap();
 
       const options = {
@@ -325,7 +483,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
           contact: user?.phone_number || '',
           name: user?.full_name || '',
         },
-        theme: { color: currentTier.color },
+        theme: { color: currentTier?.color || '#152D5E' },
       };
 
       const data = await RazorpayCheckout.open(options);
@@ -353,8 +511,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
     } catch (error: any) {
       setPaymentStatus('failed');
       showAlert({
-        title: t('payment_failed'),
-        message: error.message || t('something_went_wrong'),
+        title: 'Payment Failed',
+        message: error.message || 'Something went wrong',
         singleButton: true,
         icon: 'close-circle-outline',
       });
@@ -373,7 +531,7 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
   if (isPlansLoading || isSubLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom', 'left', 'right']}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        {isFocused && <AppStatusBar forceLight={true} />}
 
         <ScrollView
           contentContainerStyle={styles.scrollView}
@@ -393,11 +551,11 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <View style={[styles.titleSection, { marginTop: insets.top + 10, flexDirection: 'row', alignItems: 'center' }]}>
-              <Pressable onPress={() => navigation.goBack()} style={{ marginRight: 15 }}>
-                <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+            <View style={[styles.headerContainer, { marginTop: insets.top + 5 }]}>
+              <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.premiumTitle}>{t('subscription_plan')}</Text>
+              <Text style={styles.premiumTitle}>Subscription Plan</Text>
             </View>
           </LinearGradient>
           <RechargeSkeleton />
@@ -406,9 +564,20 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
     );
   }
 
+  if (planTiers.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
+          <Text style={{ marginTop: 12, color: '#9CA3AF', fontSize: 16 }}>No plans available at the moment</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      {isFocused && <AppStatusBar forceLight={true} />}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -428,28 +597,28 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-        
+
 
           {/* Promo Banner */}
-          {/* <View style={styles.promoBanner}>
-            <Ionicons name="pricetag" size={20} color="#D97706" style={styles.promoIcon} />
-            <View>
-              <Text style={styles.promoTitle}>{t('first_month_promo')}</Text>
-              <Text style={styles.promoSubtitle}>{t('promo_ends')}</Text>
-            </View>
-          </View> */}
+
 
           {/* Title Section */}
 
-          <View style={[styles.titleSection, { marginTop: insets.top + 10, flexDirection: 'row', alignItems: 'flex-start' }]}>
-            <Pressable onPress={() => navigation.goBack()} style={{ marginTop: 6, marginRight: 12 }}>
-              <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+          <View style={[styles.headerContainer, { marginTop: insets.top + 5 }]}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={({ pressed }) => [
+                styles.backButton,
+                { opacity: pressed ? 0.6 : 1 }
+              ]}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </Pressable>
-            <View style={{ flex: 1 }}>
-            <Text style={styles.pickYourText}>
-              {t('pick_your')} <Text style={styles.planWordText}>{t('plan_word')}</Text>
-            </Text>
-            <Text style={styles.subTitleText}>{t('drive_earn_faster')}</Text>
+            <View style={styles.headerTitleWrapper}>
+              <Text style={styles.pickYourText}>
+                Pick Your <Text style={styles.planWordText}>Plan</Text>
+              </Text>
+              <Text style={styles.subTitleText}>Drive & Earn Faster</Text>
             </View>
           </View>
         </LinearGradient>
@@ -471,8 +640,8 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                 ]}
               >
                 <LinearGradient
-                  colors={selectedTierId === tier.id 
-                    ? [tier.gradient, tier.color] 
+                  colors={selectedTierId === tier.id
+                    ? [tier.gradient, tier.color]
                     : (isDark ? ['#374151', '#1F2937'] : ['#FFFFFF', '#F9FAFB'])}
                   style={[
                     styles.tierCard,
@@ -480,39 +649,29 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                     tier.isPopular && { borderWidth: 2, borderColor: selectedTierId === tier.id ? '#FFF' : tier.color }
                   ]}
                 >
-                  {tier.isPopular && (
+                  {tier.tag && (
                     <View style={[styles.popularBadge, { backgroundColor: selectedTierId === tier.id ? '#FFF' : tier.color }]}>
                       <Text style={[styles.popularBadgeText, { color: selectedTierId === tier.id ? tier.color : '#FFF' }]}>
-                        {t('popular_caps')}
+                        {tier.tag}
                       </Text>
                     </View>
                   )}
                   <View style={[
-                    styles.tierIconContainer, 
+                    styles.tierIconContainer,
                     { backgroundColor: selectedTierId === tier.id ? 'rgba(255,255,255,0.2)' : (isDark ? '#4B5563' : '#F3F4F6') }
                   ]}>
-                    <Ionicons 
-                      name={tier.icon as any} 
-                      size={26} 
-                      color={selectedTierId === tier.id ? '#FFFFFF' : tier.color} 
+                    <Ionicons
+                      name={tier.icon as any}
+                      size={26}
+                      color={selectedTierId === tier.id ? '#FFFFFF' : tier.color}
                     />
                   </View>
                   <Text style={[
-                    styles.tierNameText, 
+                    styles.tierNameText,
                     { color: selectedTierId === tier.id ? '#FFFFFF' : (isDark ? '#E5E7EB' : '#1E3A8A') }
                   ]} numberOfLines={1}>
                     {tier.name}
                   </Text>
-                  <View style={styles.tierPriceContainer}>
-                    <Text style={[
-                      styles.tierPriceText,
-                      { color: selectedTierId === tier.id ? '#FFFFFF' : (isDark ? '#F3F4F6' : '#111827') }
-                    ]}>₹{tier.pricing.daily}</Text>
-                    <Text style={[
-                      styles.tierDurationText,
-                      { color: selectedTierId === tier.id ? 'rgba(255,255,255,0.8)' : '#6B7280' }
-                    ]}>/{t('day_tag').toLowerCase()}</Text>
-                  </View>
                 </LinearGradient>
               </Pressable>
             ))}
@@ -526,89 +685,208 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
                 onPress={() => setSelectedDuration(dur.key)}
                 style={[
                   styles.durationTab,
-                  selectedDuration === dur.key && { backgroundColor: currentTier.color }
+                  selectedDuration === dur.key && { backgroundColor: currentTier?.color || '#2563EB' }
                 ]}
               >
                 <Text style={[
                   styles.durationTabText,
                   selectedDuration === dur.key && styles.selectedDurationTabText
                 ]}>
-                  {t(dur.labelKey)}
+                  {dur.label}
                 </Text>
               </Pressable>
             ))}
           </View>
 
+          {/* Promo Code Section */}
+          <View style={[styles.promoSection, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
+            {/* Available Promos Horizontal Scroll */}
+            {availablePromos?.data?.length > 0 && !appliedPromoCode && (
+              <View style={styles.availableOffersWrapper}>
+                <Text style={[styles.availableOffersTitle, { color: isDark ? '#9CA3AF' : '#475569' }]}>
+                  Available Offers
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.availableOffersScroll}>
+                  {availablePromos.data.map((promo: any) => (
+                    <PromoCoupon
+                      key={promo.id}
+                      promo={promo}
+                      tierColor={currentTier?.color || '#2563EB'}
+                      onApply={handleApplyPromo}
+                      onCopy={handleCopyPromo}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            <View style={[styles.promoInputRow, availablePromos?.data?.length > 0 && !appliedPromoCode && { marginTop: 15 }]}>
+              <View style={[styles.promoInputWrapper, { borderColor: isDark ? '#334155' : '#E2E8F0', backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
+                <Ionicons name="pricetag" size={18} color={isDark ? '#94A3B8' : '#475569'} style={{ marginRight: 12 }} />
+                <TextInput
+                  style={[styles.promoTextInput, { color: isDark ? '#FFFFFF' : '#1E293B' }]}
+                  placeholder="Enter Promo Code"
+                  placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                  value={promoInput}
+                  onChangeText={setPromoInput}
+                  autoCapitalize="characters"
+                  editable={!isValidatingPromo && !appliedPromoCode}
+                />
+                {appliedPromoCode && (
+                  <Pressable onPress={() => { setAppliedPromoCode(null); setDiscountAmount(0); setPromoInput(''); }}>
+                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  </Pressable>
+                )}
+              </View>
+              <Pressable
+                onPress={() => handleApplyPromo()}
+                disabled={isValidatingPromo || !!appliedPromoCode || !promoInput.trim()}
+                style={[
+                  styles.applyPromoButton,
+                  { backgroundColor: appliedPromoCode ? '#10B981' : (currentTier?.color || '#2563EB') },
+                  (isValidatingPromo || (!appliedPromoCode && !promoInput.trim())) && { opacity: 0.6 }
+                ]}
+              >
+                {isValidatingPromo ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.applyPromoText}>
+                    {appliedPromoCode ? 'Applied' : 'Apply'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+
+            {/* Wallet Rewards Section */}
+            {Number(user?.credit?.balance || 0) > 0 && (
+              <View style={[
+                styles.rewardSection,
+                {
+                  backgroundColor: isDark ? '#0F172A' : '#F0F9FF',
+                  borderColor: useRewardBalance ? '#0EA5E9' : (isDark ? '#1E293B' : '#E0F2FE')
+                }
+              ]}>
+                <View style={styles.rewardHeader}>
+                  <View style={styles.rewardIconWrapper}>
+                    <Ionicons name="gift" size={20} color="#0EA5E9" />
+                  </View>
+                  <View style={styles.rewardInfo}>
+                    <Text style={[styles.rewardTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Referral Rewards</Text>
+                    <Text style={[styles.rewardSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                      Available: <Text style={{ fontWeight: '800', color: '#0EA5E9' }}>₹{user?.credit?.balance || 0}</Text>
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      triggerHaptic(HapticFeedbackTypes.impactLight);
+                      setUseRewardBalance(!useRewardBalance);
+                    }}
+                    style={[
+                      styles.rewardApplyBtn,
+                      { backgroundColor: useRewardBalance ? '#0EA5E9' : 'transparent', borderWidth: useRewardBalance ? 0 : 1, borderColor: '#0EA5E9' }
+                    ]}
+                  >
+                    <Text style={[styles.rewardApplyText, { color: useRewardBalance ? '#FFF' : '#0EA5E9' }]}>
+                      {useRewardBalance ? 'Applied' : 'Apply'}
+                    </Text>
+                  </Pressable>
+                </View>
+                {useRewardBalance && (
+                  <View style={styles.rewardCalculation}>
+                    <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                    <Text style={styles.rewardCalcText}>
+                      Extra ₹{Math.min(user?.credit?.balance || 0, currentPrice - discountAmount)} discount applied!
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
           {/* Selected Plan Details */}
           <Animated.View style={[
-            styles.mainPlanCard, 
-            { 
+            styles.mainPlanCard,
+            {
               transform: [{ scale: scaleAnim }],
               backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-              borderColor: isDark ? '#374151' : '#E5E7EB'
+              borderRadius: 16, // Softer radius for the shadow look
             }
           ]}>
             <View style={styles.planCardHeader}>
-              <View style={{ flex: 1 }}>
-                <View style={[styles.planTitleContainer, { backgroundColor: currentTier.color + '15' }]}>
-                  <Ionicons name={currentTier.icon} size={16} color={currentTier.color} style={{ marginRight: 6 }} />
-                  <Text style={[styles.mainPlanName, { color: currentTier.color }]}>{currentTier.name.toUpperCase()}</Text>
-                </View>
-                <View style={styles.mainPriceRow}>
-                  <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>₹{currentPrice}</Text>
-                  <Text style={styles.mainDurationText}>/{getFriendlyDuration(selectedDuration)}</Text>
-                </View>
-                {isActivePlan && (
-                  <LinearGradient
-                    colors={['#ECFDF5', '#D1FAE5']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.activePlanBadge}
-                  >
-                    <Ionicons name="shield-checkmark" size={14} color="#10B981" />
-                    <Text style={styles.activePlanExpiryText}>
-                      {t('expires_on')}: {new Date(activePlan.expiry_date).toLocaleDateString()}
-                    </Text>
-                  </LinearGradient>
-                )}
+              <View style={[styles.planTitleContainer, { backgroundColor: (currentTier?.color || '#2563EB') + '15', marginBottom: 0, borderWidth: 1, borderColor: (currentTier?.color || '#2563EB') + '30' }]}>
+                <Ionicons name={currentTier?.icon || 'shield-outline'} size={14} color={currentTier?.color || '#2563EB'} style={{ marginRight: 6 }} />
+                <Text style={[styles.mainPlanName, { color: currentTier?.color || '#2563EB' }]}>{(currentTier?.name || '').toUpperCase()}</Text>
               </View>
-              {currentTier.savings && (
-                <LinearGradient
-                  colors={isDark ? ['#1E3A8A', '#152D5E'] : ['#EBF2FF', '#DBEAFE']}
-                  style={styles.saveBadge}
-                >
-                   <Text style={[styles.saveBadgeText, { color: isDark ? '#60A5FA' : '#2563EB' }]}>
-                     {t('save_percent', { percent: currentTier.savings })}
-                   </Text>
-                </LinearGradient>
+
+              {currentTier?.savings && (
+                <View style={[styles.saveBadge, { backgroundColor: isDark ? '#1E3A8A' : '#EBF2FF' }]}>
+                  <Text style={[styles.saveBadgeText, { color: isDark ? '#60A5FA' : '#2563EB' }]}>
+                    SAVE {currentTier?.savings}%
+                  </Text>
+                </View>
               )}
             </View>
+
+            <View style={styles.mainPriceRow}>
+              {(discountAmount > 0 || useRewardBalance) ? (
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
+                    ₹{Math.max(0, currentPrice - discountAmount - (useRewardBalance ? Number(user?.credit?.balance || 0) : 0))}
+                  </Text>
+                  <Text style={[styles.originalPriceText, { color: isDark ? '#6B7280' : '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8, fontSize: 16 }]}>₹{currentPrice}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.mainPriceText, { color: isDark ? '#FFFFFF' : '#111827' }]}>₹{currentPrice}</Text>
+              )}
+              <Text style={styles.mainDurationText}>/ {getFriendlyDuration(selectedDuration)}</Text>
+            </View>
+
+            {isActivePlan && (
+              <View style={[styles.activePlanBadge, { marginHorizontal: 20, marginBottom: 15 }]}>
+                <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+                <Text style={styles.activePlanExpiryText}>
+                  ACTIVE • Expires {new Date(activePlan.expiry_date).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
 
             <View style={[styles.divider, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]} />
 
             <View style={styles.featuresSection}>
-              <Text style={styles.featuresTitle}>{t('whats_included_caps')}</Text>
-              {currentTier.features.map((feature: any, idx) => (
-                <View key={idx} style={styles.featureLine}>
-                  <View style={[
-                    styles.checkCircle, 
-                    { backgroundColor: feature.isBlocked ? (isDark ? '#374151' : '#F3F4F6') : currentTier.color }
-                  ]}>
-                    <Ionicons
-                      name={feature.icon}
-                      size={12}
-                      color={feature.isBlocked ? "#9CA3AF" : "white"}
-                    />
+              <Text style={styles.featuresTitle}>WHAT'S INCLUDED</Text>
+              <View style={styles.featuresGrid}>
+                {(currentTier?.features || []).map((feature: any, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.featureGridItem,
+                      { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }
+                    ]}
+                  >
+                    <View style={[
+                      styles.checkCircle,
+                      {
+                        backgroundColor: feature.isBlocked
+                          ? (isDark ? '#374151' : '#F3F4F6')
+                          : (currentTier?.color || '#2563EB'),
+                      }
+                    ]}>
+                      <Ionicons
+                        name={feature.icon}
+                        size={12}
+                        color={feature.isBlocked ? "#9CA3AF" : "white"}
+                      />
+                    </View>
+                    <Text style={[
+                      styles.featureLineText,
+                      { color: isDark ? '#E5E7EB' : '#334155' },
+                      feature.isBlocked && { textDecorationLine: 'line-through', color: '#9CA3AF' }
+                    ]} numberOfLines={1}>
+                      {getFeatureLabel(feature.key)}
+                    </Text>
                   </View>
-                  <Text style={[
-                    styles.featureLineText,
-                    { color: isDark ? '#D1D5DB' : '#374151' },
-                    feature.isBlocked && { textDecorationLine: 'line-through', color: '#9CA3AF' }
-                  ]}>
-                    {t(feature.key, feature.params) as any}
-                  </Text>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
           </Animated.View>
 
@@ -619,22 +897,22 @@ const RechargePlanScreen: React.FC<any> = ({ navigation }) => {
               disabled={isProcessing || isActivePlan}
               style={[
                 styles.mainSubscribeButton,
-                { backgroundColor: isActivePlan ? '#10B981' : currentTier.color }
+                { backgroundColor: isActivePlan ? '#10B981' : (currentTier?.color || '#2563EB') }
               ]}
             >
               <Ionicons name="lock-closed" size={20} color="white" style={styles.lockIcon} />
               <Text style={styles.subscribeText}>
-                {isActivePlan ? t('current_active_plan') : `${t('subscribe_now_btn')} • ₹${currentPrice}`}
+                {isActivePlan ? 'Current Active Plan' : `Subscribe Now • ₹${Math.max(0, currentPrice - discountAmount - (useRewardBalance ? Number(user?.credit?.balance || 0) : 0))}`}
               </Text>
             </Pressable>
 
             <View style={styles.securityInfo}>
               <Ionicons name="shield-checkmark-outline" size={16} color="#9CA3AF" />
-              <Text style={styles.securityText}>{t('secured_encryption')}</Text>
+              <Text style={styles.securityText}>Secured with 256-bit Encryption</Text>
             </View>
 
             <Pressable style={styles.refundLink}>
-              <Text style={styles.refundText}>{t('refund_policy')}</Text>
+              <Text style={styles.refundText}>Refund Policy</Text>
             </Pressable>
           </View>
         </View>
@@ -688,20 +966,37 @@ const styles = StyleSheet.create({
   // promoIcon: { marginRight: 12 },
   // promoTitle: { color: '#92400E', fontSize: 16, fontWeight: 'bold' },
   // promoSubtitle: { color: '#B45309', fontSize: 13 },
-  titleSection: {
-    paddingHorizontal: 25,
-    marginTop: 4,
+
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  headerTitleWrapper: {
+    flex: 1,
   },
   pickYourText: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: '800',
     color: 'white',
+    letterSpacing: -0.5,
   },
   planWordText: { color: '#FBBF24' },
   subTitleText: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 5,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
+    fontWeight: '500',
   },
   contentContainer: {
     flex: 1,
@@ -713,47 +1008,52 @@ const styles = StyleSheet.create({
   },
   tierCardsScroll: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
     paddingBottom: 20,
     gap: 16,
   },
   tierCard: {
-    width: 110,
-    borderRadius: 24,
-    padding: 12,
+    width: 90,
+    borderRadius: 22,
+    padding: 2,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-   
+
   },
   selectedTierCard: {
     borderColor: '#FFFFFF',
   },
-  eliteCardBorder: {
-    borderColor: '#1E3A8A',
-    borderWidth: 2,
-  },
+  // eliteCardBorder: {
+  //   borderColor: '#1E3A8A',
+  //   borderWidth: 2,
+  // },
   popularBadge: {
     position: 'absolute',
-    top: -12,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+    top: -10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
     zIndex: 2,
-  
-   
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   popularBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   tierIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tierNameText: {
     fontSize: 15,
@@ -767,13 +1067,14 @@ const styles = StyleSheet.create({
   },
   tierPriceText: { fontSize: 18, fontWeight: '900' },
   tierDurationText: { fontSize: 11, fontWeight: '600' },
+
   durationTabs: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
     borderRadius: 15,
-    padding: 5,
-    marginBottom: 20,
-    marginHorizontal: 20,
+    padding: 2,
+    marginBottom: 6,
+    marginHorizontal: 18,
   },
   durationTab: {
     flex: 1,
@@ -793,38 +1094,47 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   mainPlanCard: {
-    borderRadius: 30,
-    padding: 24,
+    padding: 16,
     marginHorizontal: 20,
-    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
   },
   planCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 4,
   },
   planTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    marginBottom: 10,
   },
-  mainPlanName: { fontSize: 14, fontWeight: '900', letterSpacing: 1 },
-  mainPriceRow: { flexDirection: 'row', alignItems: 'baseline' },
-  mainPriceText: { fontSize: 42, fontWeight: '900' },
-  mainDurationText: { fontSize: 18, color: '#6B7280', marginLeft: 4, fontWeight: '600' },
+  mainPlanName: { fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  mainPriceRow: { 
+    flexDirection: 'row', 
+    alignItems: 'baseline', 
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  mainPriceText: { fontSize: 48, fontWeight: '900', letterSpacing: -1 },
+  mainDurationText: { fontSize: 20, color: '#4B5563', marginLeft: 6, fontWeight: '800', textTransform: 'capitalize' },
   activePlanBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginTop: 14,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
   },
   activePlanExpiryText: {
     fontSize: 12,
@@ -845,16 +1155,24 @@ const styles = StyleSheet.create({
   },
   featuresSection: { marginTop: 10 },
   featuresTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#9CA3AF',
-    letterSpacing: 1,
-    marginBottom: 15,
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1.5,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  featureLine: {
+  featuresGrid: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  featureGridItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
   },
   checkCircle: {
     width: 24,
@@ -864,7 +1182,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  featureLineText: { fontSize: 15, color: '#1F2937', fontWeight: '500' },
+  featureLineText: { fontSize: 14, color: '#1F2937', fontWeight: '600' },
   bottomSection: {
     marginTop: 30,
     paddingBottom: 40,
@@ -874,14 +1192,14 @@ const styles = StyleSheet.create({
   mainSubscribeButton: {
     width: '100%',
     height: 60,
-    borderRadius: 16,
+    borderRadius: 20,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
     elevation: 8,
   },
   lockIcon: { marginRight: 10 },
@@ -894,7 +1212,273 @@ const styles = StyleSheet.create({
   securityText: { color: '#9CA3AF', fontSize: 12, marginLeft: 8 },
   refundLink: { marginTop: 10 },
   refundText: { color: '#9CA3AF', fontSize: 12, textDecorationLine: 'underline' },
+  promoSection: {
+    marginHorizontal: 16,
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  promoInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  promoInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    height: 50,
+    marginRight: 12,
+  },
+  promoTextInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    padding: 0,
+  },
+  applyPromoButton: {
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  applyPromoText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  availableOffersWrapper: {
+    marginTop: 16,
+  },
+  availableOffersTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  availableOffersScroll: {
+    paddingRight: 20,
+    paddingBottom: 10,
+  },
+  originalPriceText: {
+    marginLeft: 8,
+  },
   scrollContent: { paddingBottom: 20 },
+
+  // Coupon Styles
+  couponOuterContainer: {
+    marginRight: 12,
+    paddingTop: 4,
+    position: 'relative',
+    width: 300,
+  },
+  grabDealBadge: {
+    position: 'absolute',
+    top: -2,
+    left: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 10,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '-2deg' }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  grabDealText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  couponCard: {
+    height: 130,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  scallopedEdgeLeft: {
+    position: 'absolute',
+    left: -8,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'space-around',
+    zIndex: 5,
+  },
+  scallopedEdgeRight: {
+    position: 'absolute',
+    right: -8,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'space-around',
+    zIndex: 5,
+  },
+  scallopCircleSmall: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  couponContent: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingLeft: 20,
+    paddingRight: 12,
+    paddingVertical: 14,
+  },
+  couponLeft: {
+    width: '44%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  couponDiscountLabel: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  couponDiscountValue: {
+    color: '#FFF',
+    fontSize: 48,
+    fontWeight: '900',
+    lineHeight: 52,
+  },
+  couponDivider: {
+    width: 1,
+    height: '100%',
+    borderLeftWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.4)',
+    marginHorizontal: 10,
+  },
+  couponRight: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingLeft: 4,
+  },
+  couponOffText: {
+    color: '#FFF',
+    fontSize: 34,
+    fontWeight: '900',
+    lineHeight: 38,
+  },
+  couponCopyIcon: {
+    marginLeft: 10,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    padding: 6,
+    borderRadius: 20,
+  },
+  couponCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  couponCodeHeader: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  couponCodeText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  couponDescription: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  couponFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    paddingVertical: 4,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  couponFooterText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  rewardSection: {
+    marginTop: 15,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginHorizontal: 18,
+  },
+  rewardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rewardIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(14, 165, 233, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  rewardInfo: {
+    flex: 1,
+  },
+  rewardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  rewardSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  rewardApplyBtn: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  rewardApplyText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  rewardCalculation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(14, 165, 233, 0.1)',
+  },
+  rewardCalcText: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
 });
 
 export default RechargePlanScreen;

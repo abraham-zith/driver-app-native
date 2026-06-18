@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Animated, FlatList, Dimensions, TouchableOpacity, Platform, Modal, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppStatusBar from '../../Components/AppStatusBar';
 import LinearGradient from 'react-native-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
@@ -14,6 +15,7 @@ import {
 
 import HelpCenterModal from './HelpCenterModal';
 import OnboardingBackground from './components/OnboardingBackground';
+import { useTranslation } from 'react-i18next';
 
 import Page1 from './pages/Page1';
 import Page2 from './pages/Page2';
@@ -57,6 +59,7 @@ const Onboarding = ({ navigation }: any) => {
   const [helpVisible, setHelpVisible] = useState(false);
   const [showCongratsModal, setShowCongratsModal] = useState(false);
   const { colors } = useTheme() as any;
+  const { t } = useTranslation();
 
   // Pulse animation for brand text
   const pulseValue = useSharedValue(1);
@@ -151,12 +154,15 @@ const Onboarding = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}>
+      <AppStatusBar forceDark />
       <OnboardingBackground>
         <View style={styles.container}>
           {/* HEADER */}
           <View style={styles.headerContainer}>
+
+
             <View style={styles.titleWrapper}>
-              <Text style={styles.title}>Welcome to </Text>
+              <Text style={styles.title}>{t('welcome_to', 'Welcome to ')}</Text>
               <AnimatedReanimated.View
                 entering={BounceIn.duration(1000).delay(200)}
                 style={styles.brandWrapper}
@@ -177,8 +183,10 @@ const Onboarding = ({ navigation }: any) => {
             <AnimatedReanimated.Text
               entering={FadeInDown.duration(800).delay(500)}
               style={styles.tagline}
+              adjustsFontSizeToFit
+              numberOfLines={2}
             >
-              Your trusted platform to earn, drive, and grow with confidence.
+              {t('onboarding_tagline', 'Your trusted platform to earn, drive, and grow with confidence.')}
             </AnimatedReanimated.Text>
 
             <AnimatedReanimated.View
@@ -190,8 +198,8 @@ const Onboarding = ({ navigation }: any) => {
                 activeOpacity={0.8}
                 onPress={() => setHelpVisible(true)}
               >
-                <Ionicons name="headset-outline" size={mS(14)} color="#4B5563" style={{ marginRight: hS(6) }} />
-                <Text style={styles.helpText}>Help Center</Text>
+                <Ionicons name="headset-outline" size={mS(12)} color="#4B5563" style={{ marginRight: hS(4) }} />
+                <Text style={styles.helpText}>{t('help_center', 'Help Center')}</Text>
               </TouchableOpacity>
             </AnimatedReanimated.View>
           </View>
@@ -238,35 +246,15 @@ const Onboarding = ({ navigation }: any) => {
 
           {/* BOTTOM CTA */}
           <View style={styles.bottomContainer}>
-            {/* 🚧 REAL BUTTON — UNCOMMENT FOR PRODUCTION
             <TouchableOpacity
               style={[styles.verificationButton, { backgroundColor: colors.primary }]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate(OnboardingSos_Nav, { nextScreen: DocumentScreen_Nav })}
+              onPress={() => navigation.navigate(DocumentScreen_Nav)}
             >
-            <Text style={styles.verificationButtonText}>
-              Verify Documents to Start Earning
-            </Text>
-            <Ionicons name="shield-checkmark" size={20} color="#FFF" style={{ marginLeft: 8 }} />
-          </TouchableOpacity>
-          */}
-
-            {/* 🚧 TEMPORARY BYPASS — REMOVE BEFORE PRODUCTION */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate(OnboardingSos_Nav, { nextScreen: Dashboard_Nav })}
-              style={styles.premiumButtonWrapper}
-            >
-              <LinearGradient
-                colors={['#0d4780', '#0a3d6d', '#08335a']}
-                style={styles.premiumButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.premiumButtonText}>
-                  Skip to Dashboard
-                </Text>
-              </LinearGradient>
+              <Text style={styles.verificationButtonText}>
+                {t('verify_docs_to_start', 'Verify Documents to Start Earning')}
+              </Text>
+              <Ionicons name="shield-checkmark" size={15} color="#FFF" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </View>
 
@@ -305,12 +293,12 @@ const Onboarding = ({ navigation }: any) => {
                   </AnimatedReanimated.View>
                 </View>
 
-                <Text style={[styles.congratsTitle, { color: colors.text }]}>
-                  Registration Finished!
+                <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.congratsTitle, { color: colors.text }]}>
+                  {t('registration_finished', 'Registration Finished!')}
                 </Text>
 
-                <Text style={[styles.congratsSubtitle, { color: colors.text + '99' }]}>
-                  Your profile details are saved. The final step to start earning is to upload your documents for verification.
+                <Text adjustsFontSizeToFit numberOfLines={3} style={[styles.congratsSubtitle, { color: colors.text + '99' }]}>
+                  {t('registration_finished_desc', 'Your profile details are saved. The final step to start earning is to upload your documents for verification.')}
                 </Text>
 
                 <TouchableOpacity
@@ -320,8 +308,8 @@ const Onboarding = ({ navigation }: any) => {
                     navigation.navigate(DocumentScreen_Nav);
                   }}
                 >
-                  <Text style={styles.verifyButtonText}>
-                    Start Verification
+                  <Text adjustsFontSizeToFit numberOfLines={1} style={styles.verifyButtonText}>
+                    {t('start_verification', 'Start Verification')}
                   </Text>
                   <Ionicons name="arrow-forward" size={20} color="#FFF" />
                 </TouchableOpacity>
@@ -359,7 +347,7 @@ const styles = StyleSheet.create({
 
   /* HEADER */
   headerContainer: {
-    paddingTop: vS(10),
+    paddingTop: vS(8),
     paddingHorizontal: hS(20),
     alignItems: 'center',
     justifyContent: 'center',
@@ -376,29 +364,29 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   title: {
-    fontSize: mS(22),
+    fontSize: mS(18),
     fontWeight: '600',
     textAlign: 'center',
     color: '#4B5563',
   },
   brand: {
-    fontSize: mS(28),
+    fontSize: mS(22),
     fontWeight: '800',
     color: '#2563EB',
     textAlign: 'left', // Left align inside the fixed-width wrapper
   },
   subtitle: {
-    fontSize: mS(16),
+    fontSize: mS(14),
     textAlign: 'center',
     color: '#1F2937',
-    marginTop: vS(4),
+    marginTop: vS(2),
   },
   tagline: {
-    marginTop: vS(6),
+    marginTop: vS(4),
     textAlign: 'center',
     color: '#6B7280',
-    fontSize: mS(14),
-    marginBottom: vS(10),
+    fontSize: mS(12),
+    marginBottom: vS(6),
   },
   helpButton: {
     alignSelf: 'flex-end',
@@ -410,12 +398,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: hS(14),
     paddingVertical: vS(6),
     borderRadius: mS(20),
-    marginTop: vS(5),
+    marginTop: vS(4),
   },
   helpText: {
     color: '#4B5563',
     fontWeight: '600',
-    fontSize: mS(12),
+    fontSize: mS(10),
   },
 
   /* PAGES */
@@ -431,10 +419,10 @@ const styles = StyleSheet.create({
     marginTop: vS(5),
   },
   dot: {
-    width: mS(10),
-    height: mS(10),
-    borderRadius: mS(6),
-    marginHorizontal: hS(4),
+    width: mS(8),
+    height: mS(8),
+    borderRadius: mS(4),
+    marginHorizontal: hS(3),
   },
 
   /* BOTTOM */
@@ -519,9 +507,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: vS(16),
-    paddingHorizontal: hS(24),
-    borderRadius: mS(16),
-    width: '100%',
+    paddingHorizontal: hS(20),
+    borderRadius: mS(12),
+    width: 320,
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -531,8 +519,8 @@ const styles = StyleSheet.create({
   },
   verificationButtonText: {
     color: '#FFF',
-    fontSize: mS(16),
-    fontWeight: '700',
+    fontSize: mS(13),
+    fontWeight: '500',
   },
   premiumButtonWrapper: {
     marginTop: vS(12),

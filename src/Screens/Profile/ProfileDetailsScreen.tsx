@@ -14,11 +14,15 @@ import {
 import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useIsFocused } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
+import AppStatusBar from '../../Components/AppStatusBar';
 import { ms, vs } from '../../lib/scale';
+import ImageZoomModal from '../../Components/ImageZoomModal';
+import { resolveImageUrl } from '../../utils/imageUtils';
 
 const CardSection = ({ title, icon, children, s, headerIconColor }: any) => (
   <View style={s.cardSection}>
@@ -43,6 +47,23 @@ export default function ProfileDetailsScreen({ navigation }: any) {
 
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [showProfileImage, setShowProfileImage] = useState(false);
+  const [stableImgUrl, setStableImgUrl] = useState(user?.profile_picture);
+
+  // Sync stable image URL whenever it's valid
+  React.useEffect(() => {
+    if (user?.profile_picture && user.profile_picture.trim() !== '') {
+      setStableImgUrl(user.profile_picture);
+    }
+  }, [user?.profile_picture]);
+
+  const isFocused = useIsFocused();
+
+  // Reset image error if user profile changes
+  React.useEffect(() => {
+    setImgError(false);
+  }, [user?.profile_picture]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -410,7 +431,7 @@ export default function ProfileDetailsScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={s.safeArea} edges={['bottom', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      {isFocused && <AppStatusBar forceLight={true} />}
       <Pressable onPress={() => navigation.goBack()} style={s.backButton}>
         <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
       </Pressable>
@@ -445,22 +466,36 @@ export default function ProfileDetailsScreen({ navigation }: any) {
           )}
 
           <View style={s.topSection}>
-            <View style={s.avatarContainer}>
-              {/* @ts-ignore */}
-              {user?.profile_picture ? (
-                <Image
-                  // @ts-ignore
-                  source={{ uri: user.profile_picture }}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={s.avatarText}>{getInitials()}</Text>
-              )}
+            <Pressable
+              style={s.avatarContainer}
+              onPress={() => {
+                if (stableImgUrl && !imgError) {
+                  setShowProfileImage(true);
+                }
+              }}
+            >
+              <View style={[s.avatarContainer, { position: 'relative', backgroundColor: 'transparent' }]}>
+                {(() => {
+                  // Priority 1: Show image if we have a stable URL and no error
+                  if (stableImgUrl && !imgError) {
+                    return (
+                      <Image
+                        source={{ uri: resolveImageUrl(stableImgUrl) }}
+                        style={{ width: 80, height: 80, borderRadius: 40 }}
+                        resizeMode="cover"
+                        fadeDuration={0}
+                        onError={() => setImgError(true)}
+                      />
+                    );
+                  }
+                  // Priority 2: Show initials fallback
+                  return <Text style={s.avatarText}>{getInitials()}</Text>;
+                })()}
+              </View>
               <View style={s.verifiedBadge}>
                 <Ionicons name="shield-checkmark" size={12} color="#FFFFFF" />
               </View>
-            </View>
+            </Pressable>
 
             <Text style={s.nameText}>
               {user?.full_name}
@@ -496,7 +531,10 @@ export default function ProfileDetailsScreen({ navigation }: any) {
                 </Text>
               </Pressable>
 
-              <Pressable style={[s.documentsButton, { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' }]}>
+              <Pressable 
+                onPress={() => navigation.navigate('ProfileDocumentsScreen')}
+                style={[s.documentsButton, { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' }]}
+              >
                 <Ionicons name="document-text-outline" size={18} color="#FFFFFF" />
                 <Text style={[s.documentsButtonText, { color: '#FFFFFF' }]}>{t('documents')}</Text>
               </Pressable>
@@ -636,6 +674,12 @@ export default function ProfileDetailsScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      <ImageZoomModal
+        visible={showProfileImage}
+        imageUris={stableImgUrl ? [stableImgUrl] : []}
+        onClose={() => setShowProfileImage(false)}
+      />
 
     </SafeAreaView >
   );
